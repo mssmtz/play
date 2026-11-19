@@ -773,23 +773,28 @@ function netErr(c){return c==='no_peerjs'?'通信ライブラリを読み込め�
 /* PeerJS (WebRTC) adapter with the same shape the game uses: presence / peers / leave */
 function peerRoom(code){return new Promise((res,rej)=>{
  const P=window.Peer||(window.peerjs&&window.peerjs.Peer);if(!P)return rej({code:'no_peerjs'});
- const hostId='rayshooter-'+code;let mine={},opp=null,conn=null,me='a',pend=false,last=0,peer,done=false;
- const ok=v=>{if(!done){done=true;res(v)}},ng=e=>{if(!done){done=true;rej(e)}};
+ const hostId='rayshooter-'+code;let mine={},opp=null,conn=null,me='a',peer=null,done=false,role=null,retryT=null,alive=true,pend=false,last=0;
+ const ok=v=>{if(!done){done=true;res(v)}},ng=e=>{if(!done){done=true;alive=false;try{peer&&peer.destroy()}catch(x){}rej(e)}};
+ const st=v=>{net.status=v};
  const flush=()=>{if(pend)return;pend=true;setTimeout(()=>{pend=false;last=performance.now();if(conn&&conn.open)try{conn.send(mine)}catch(e){}},Math.max(0,33-(performance.now()-last)))};
  const api={peers:()=>{const a=[{peer:me,isMe:true,sameTab:true,presence:mine}];if(opp&&conn&&conn.open)a.push({peer:me==='a'?'b':'a',isMe:false,sameTab:false,presence:opp});return a},
   presence:p=>{Object.assign(mine,JSON.parse(JSON.stringify(p)));flush();return Promise.resolve()},
-  leave:async()=>{try{peer.destroy()}catch(e){}}};
- const bind=c=>{conn=c;c.on('data',d=>{if(d&&typeof d==='object'&&!Array.isArray(d))opp=d});c.on('open',()=>{try{c.send(mine)}catch(e){}});c.on('close',()=>{if(conn===c){opp=null;conn=null}});c.on('error',()=>{})};
- peer=new P(hostId,{debug:0});
- peer.on('open',()=>{me='a';ok(api)});
- peer.on('connection',c=>{if(conn&&conn.open){c.close();return}bind(c)});
- peer.on('error',e=>{
-  if(e.type==='unavailable-id'&&!done){try{peer.destroy()}catch(x){}
-   peer=new P({debug:0});
-   peer.on('open',()=>{me='b';bind(peer.connect(hostId,{reliable:true,serialization:'json'}));ok(api)});
-   peer.on('error',e2=>ng({code:e2.type}))}
-  else ng({code:e.type})});
- setTimeout(()=>ng({code:'network'}),12000);
+  leave:async()=>{alive=false;clearTimeout(retryT);try{peer&&peer.destroy()}catch(e){}},role:()=>role};
+ const bind=c=>{c.on('open',()=>{if(conn&&conn!==c&&conn.open){try{c.close()}catch(e){}return}conn=c;st('connected');clearTimeout(retryT);try{c.send(mine)}catch(e){}});
+  c.on('data',d=>{if(c===conn&&d&&typeof d==='object'&&!Array.isArray(d))opp=d});
+  c.on('close',()=>{if(conn===c){conn=null;opp=null;if(role==='guest'){st('lost');retry()}else st('waiting')}});c.on('error',()=>{})};
+ const keep=pr=>pr.on('disconnected',()=>{if(alive&&!pr.destroyed)try{pr.reconnect()}catch(e){}});
+ function connect(){if(!alive||!peer)return;st('connecting');const c=peer.connect(hostId,{reliable:true});bind(c);
+  clearTimeout(retryT);retryT=setTimeout(()=>{if(alive&&!c.open){try{c.close()}catch(e){}connect()}},8000)}
+ function retry(){clearTimeout(retryT);retryT=setTimeout(()=>{if(alive&&role==='guest'&&!(conn&&conn.open))connect()},3000)}
+ function asGuest(){peer=new P({debug:0});keep(peer);
+  peer.on('open',()=>{role='guest';me='b';ok(api);connect()});
+  peer.on('error',e=>{if(e.type==='peer-unavailable'){st('noroom');retry();return}if(!done)ng({code:e.type});else{st('error:'+e.type);retry()}})}
+ function asHost(){peer=new P(hostId,{debug:0});keep(peer);
+  peer.on('open',()=>{role='host';me='a';st('waiting');ok(api)});
+  peer.on('connection',c=>{if(conn&&conn.open){c.on('open',()=>{try{c.close()}catch(e){}});return}bind(c)});
+  peer.on('error',e=>{if(e.type==='unavailable-id'&&!role){try{peer.destroy()}catch(x){}asGuest();return}if(!done)ng({code:e.type});else st('error:'+e.type)})}
+ asHost();setTimeout(()=>ng({code:'network'}),15000);
 })}
 function netReady(){net.ready=net.round+1;sendPres();show('game');fit();$('wait').classList.add('on')}
 function grabMouse(){if(lockErr)return;try{const r=gc.requestPointerLock();if(r&&r.catch)r.catch(()=>{lockErr=true})}catch(x){lockErr=true}}
@@ -797,7 +802,8 @@ function netTick(dt){
  if(mode!=='net'||!room)return;
  const op=oppPeer();
  if($('wait').classList.contains('on')){
-  $('waitMsg').textContent=(!op?'相手の参加を待っています… 相手に同じルームコードで参加してもらってください':op.presence.ready===net.ready?'相手もOK！ 開始します':'相手が機体をカスタマイズ中…')+'\n戦場の希望　あなた：'+STAGES[stageId].name+(op?'　／　相手：'+STAGES[stageOK(op.presence.field)].name:'')+'（多数決・同数ならランダム）';
+  const ns=net.status||'',role=room&&room.role?room.role():null,stTxt=ns==='connected'?'相手と接続しました':ns==='connecting'?'相手と接続中…':ns==='noroom'?'ルームが見つかりません。再試行しています…（コードが同じか、相手がページを開いているか確認してください）':ns==='lost'?'相手との接続が切れました。再接続しています…':ns.startsWith('error:')?'通信エラー（'+ns.slice(6)+'）。再試行しています…':'相手の参加を待っています… 招待リンクを送るか、同じルームコードで参加してもらってください';
+  $('waitMsg').textContent='ROOM: '+net.code+(role==='host'?'（あなたがルームを作成）':role==='guest'?'（あなたはルームに参加）':'')+'\n'+(!op?stTxt:op.presence.ready===net.ready?'相手もOK！ 開始します':'相手が機体をカスタマイズ中…')+'\n戦場の希望　あなた：'+STAGES[stageId].name+(op?'　／　相手：'+STAGES[stageOK(op.presence.field)].name:'')+'（多数決・同数ならランダム）';
   if(op&&op.presence.ready===net.ready&&net.round!==net.ready){net.round=net.ready;startBattle()}
   return}
  if(!Bt||!$('game').classList.contains('on'))return;
