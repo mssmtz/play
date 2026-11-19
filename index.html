@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>対戦盤</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE game: a quiet, tense duel between two surveyors
+   IDEA a mine survey table: slate cross-section with numbered sonar ports on its rim
+   PICTURE the live mine board itself, gems drawn as faceted tangram stones
+   COLOUR deep plum rock ground, ivory lamp ink, gem red / blue / yellow / white
+   TYPE Dela Gothic One for titles + Zen Kaku Gothic New for text
+   LAYOUT laptop: board 60% left, log + own mine right; phone: status, board, tools, log */
+:root{color-scheme:dark;--bg:#1f1a21;--rock:#2a2330;--rock2:#352c3c;--slate:#3d3346;--slate2:#463a50;--line:#ffffff17;--ink:#f4ecdd;--mute:#bfb1a1;--ok:#86dba2;--bad:#ff8a80;--warn:#ffd27a}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 "Zen Kaku Gothic New",system-ui,sans-serif;overflow-x:clip;min-height:100%}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3{font-family:"Dela Gothic One","Zen Kaku Gothic New",sans-serif;font-weight:400;line-height:1.15;margin:0;letter-spacing:.01em}
+h1{font-size:clamp(26px,4vw,38px)}
+h2{font-size:22px}
+h3{font-size:17px}
+.wrap{max-width:1240px;margin:0 auto;padding:18px max(16px,3vw) 40px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;min-height:36px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--mute)}
+.dot.ok{background:var(--ok)}
+.dot.bad{background:var(--bad)}
+.dot.wait{background:var(--warn)}
+.top .sub{color:var(--mute);font-size:14px}
+.btn{min-height:44px;padding:8px 18px;border-radius:12px;border:1px solid #ffffff2e;background:var(--rock2);cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn:hover{background:var(--slate2)}
+.btn:focus-visible,.lab:focus-visible,.chip:focus-visible,input:focus-visible{outline:3px solid #fff8;outline-offset:2px}
+.btn.pri{background:var(--ink);color:#231c26;border-color:var(--ink)}
+.btn.pri:hover{background:#fff}
+.btn.ghost{background:transparent}
+.btn.danger{border-color:#ff8a8066;color:var(--bad)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.btn.on{background:var(--ink);color:#231c26}
+.btn.sm{min-height:36px;padding:4px 12px;font-size:14px}
+.btn{white-space:nowrap}
+.banner .btn,.status.me .btn{color:var(--ink)}
+.banner .btn.pri{background:#231c26;border-color:#231c26;color:var(--ink)}
+input[type=text]{min-height:46px;padding:8px 12px;border-radius:12px;border:1px solid #ffffff3a;background:#00000033;font-size:16px;width:100%}
+.panel{background:var(--rock);border:1px solid var(--line);border-radius:18px;padding:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--mute)}
+.small{font-size:14px}
+.lobby{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start}
+.hero{padding:0;overflow:hidden}
+.hero .board{border-radius:0}
+.hero .cap{padding:16px 18px}
+.stack{display:grid;gap:16px}
+.field{display:grid;gap:6px}
+.field label{font-weight:700;font-size:14px}
+.code{font-family:"Dela Gothic One",sans-serif;font-size:34px;letter-spacing:.12em}
+.board{position:relative;background:var(--rock2);border-radius:16px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.board svg{display:block;width:100%;height:auto}
+.lab{cursor:pointer}
+.lab circle{transition:stroke .15s}
+.lab:hover circle.r{stroke:#fff}
+.lab.dis{cursor:default}
+.lab{transition:opacity .12s}
+.lab.dim{opacity:.25}
+.lab.hl circle.r{stroke:#fff;stroke-width:4}
+.lr.hov{border-color:#ffffff99;background:var(--slate2)}
+.lab.dis:hover circle.r{stroke:transparent}
+.play{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px;align-items:start}
+.status{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:16px;background:var(--rock);border:1px solid var(--line);margin-bottom:14px}
+.status.me{background:var(--ink);color:#231c26}
+.status.me .muted{color:#5a4d5e}
+.turn{font-family:"Dela Gothic One",sans-serif;font-size:20px}
+.pl{display:flex;gap:14px;flex-wrap:wrap;font-size:14px}
+.pl b{font-weight:700}
+.hearts{letter-spacing:2px;color:var(--bad)}
+.status.me .hearts{color:#c3344a}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.bar{margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--rock);border:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;align-items:center;min-height:68px}
+.bar .grow{flex:1 1 220px}
+.pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;width:100%}
+.chip{border:1px solid #ffffff26;background:var(--rock2);border-radius:12px;padding:6px 4px 4px;cursor:pointer;text-align:center;font-size:13px;line-height:1.3}
+.chip svg{width:100%;height:46px;display:block}
+.chip.sel{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+.chip.used{opacity:.45}
+.log{display:grid;gap:6px;max-height:420px;overflow:auto;padding-right:2px}
+.lr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--rock2);cursor:pointer;border:1px solid transparent;font-size:15px}
+.lr.f{border-color:var(--ink)}
+.lr .n{color:var(--mute);font-size:13px;white-space:nowrap}
+.lr .io{font-weight:700;white-space:nowrap}
+.sw{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:-3px;border:1px solid #0006;margin-right:6px}
+.sw.none{background:transparent;border:2px dashed var(--mute)}
+.ck{font-size:13px;white-space:nowrap}
+.ck.y{color:var(--ok)}
+.ck.n{color:var(--bad)}
+.checks{display:grid;gap:4px;font-size:15px;margin:0;padding:0;list-style:none}
+.checks li::before{content:"✓";display:inline-block;width:1.4em;color:var(--ok);font-weight:700}
+.checks li.x::before{content:"✕";color:var(--bad)}
+.checks li.x{color:var(--ink)}
+.side{display:grid;gap:16px}
+.mini{max-width:420px}
+.banner{padding:18px 20px;border-radius:18px;background:var(--ink);color:#231c26;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.banner h2{font-size:26px}
+.colors{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;font-size:14px;margin-top:8px}
+details summary{cursor:pointer;font-weight:700;min-height:32px}
+details p,details li{color:var(--mute);font-size:15px}
+.empty{color:var(--mute);font-size:15px;padding:10px 2px}
+.tabs{display:none;gap:8px;margin-bottom:10px}
+#dlg{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+#dlg.open{display:flex}
+#dlg .box{max-width:440px;width:100%;background:var(--rock);border:1px solid #ffffff30;border-radius:18px;padding:20px;display:grid;gap:14px}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#231c26;padding:10px 18px;border-radius:12px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:11;max-width:calc(100% - 32px)}
+#toast.show{opacity:1}
+.kbd{border:1px solid #ffffff40;border-radius:6px;padding:0 6px;font-size:13px}
+.pulse{animation:pl 1.6s ease-in-out infinite}
+@keyframes pl{50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+@media(max-width:900px){.play,.lobby{grid-template-columns:minmax(0,1fr)}.tabs{display:flex}.side .mineblk.hide{display:none}.mobhide{display:none}}
+@media(max-width:600px){.pal{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:5px}.chip{font-size:12px;padding:4px 2px}.chip svg{height:36px}.turn{font-size:18px}.code{font-size:28px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="row small muted" id="net"></div><div class="row" id="topbtn"></div></div>
+  <div id="app"><div class="panel">読み込み中…</div></div>
+  <details class="panel" style="margin-top:20px" id="rules">
+    <summary>ルールと色の早見表</summary>
+    <ul>
+      <li>盤面は横10×縦8マス。各自が宝石5個（青 大三角・赤 平行四辺形・黄 中三角・白 ひし形・白 大三角）を自分の鉱山に隠します。拡張を入れると、無色の小三角（反射するが色は変わらない）と黒の小三角（当たると超音波を吸収し、出口も色も返らない）が加わります。</li>
+      <li>宝石は回転・裏返しできます。盤からはみ出す、重なる、辺どうしが接する配置はできません（角が触れるのはOK）。どの端から超音波を撃っても当たらない宝石があってはいけません。</li>
+      <li>手番では「超音波を撃つ」「解答を提出する」（設定によって「マスを調べる」も）のどれか1つを行います。</li>
+      <li>超音波は盤の端の番号から直進し、宝石の斜めの面では90度曲がり、平らな面では来た方向へ跳ね返ります。出口と、当たった宝石の色を混ぜた色が返ってきます。同じ色に何度当たっても1回分です。</li>
+      <li>相手の配置を先に完全に当てた方の勝ちです。解答を間違えるとライフが1減り、0になると負けです。</li>
+      <li>反射の計算と判定はすべてツールが自動で行うので、伝え間違いは起きません。</li>
+    </ul>
+    <div class="colors" id="ctab"></div>
+  </details>
+  <p class="muted small" style="margin:18px 2px 0">非公式のファンメイドツールです。いかなるゲーム発売元とも関係ありません。</p>
+</div>
+<div id="dlg"><div class="box" id="dlgbox"></div></div>
+<div id="toast"></div>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+{
+// ===== LOGIC-START =====
+const W=10,H=8;
+const TOP=[...Array(W)].map((_,i)=>String(i+1));
+const RIGHT=[...Array(H)].map((_,i)=>String(i+11));
+const LEFT='ABCDEFGH'.split('');
+const BOTTOM='IJKLMNOPQR'.split('');
+const DX=[0,1,0,-1],DY=[-1,0,1,0];
+const BASE=['red','blue','yellow','white'];
+const GEM={clear:{n:'無色',c:'#d8f0f7',d:'#6fa3b3',l:'#ffffff'},black:{n:'黒',c:'#2a2530',d:'#050406',l:'#77707d'},red:{n:'赤',c:'#e23a50',d:'#8c1a30',l:'#ff9aa6'},blue:{n:'青',c:'#3170e6',d:'#1a3a88',l:'#9cc0ff'},yellow:{n:'黄',c:'#f5c32c',d:'#a07306',l:'#fff1a8'},white:{n:'白',c:'#e9ecf1',d:'#8c94a0',l:'#ffffff'}};
+const SHAPES={L:[[0,0],[4,0],[2,2]],M:[[0,0],[2,0],[0,2]],D:[[1,0],[2,1],[1,2],[0,1]],P:[[0,0],[2,0],[3,1],[1,1]],S:[[0,0],[2,0],[1,1]]};
+const KINDS=[{c:'blue',s:'L',n:'青 大三角'},{c:'red',s:'P',n:'赤 平行四辺形'},{c:'yellow',s:'M',n:'黄 中三角'},{c:'white',s:'D',n:'白 ひし形'},{c:'white',s:'L',n:'白 大三角'},{c:'clear',s:'S',n:'無色 小三角'},{c:'black',s:'S',n:'黒 小三角'}];
+let ACTIVE=[0,1,2,3,4];
+const setActive=st=>{ACTIVE=[0,1,2,3,4,...(st?.clear?[5]:[]),...(st?.black?[6]:[])];};
+const MIX={'':['無色','none'],red:['赤','#e23a50'],blue:['青','#3170e6'],yellow:['黄','#f5c32c'],white:['白','#f4f6f8'],
+'blue+red':['紫','#7d3fc8'],'blue+white':['スカイブルー','#8fd0f5'],'blue+yellow':['緑','#2fa654'],'red+white':['ピンク','#f59ab8'],'red+yellow':['オレンジ','#f57d1f'],'white+yellow':['レモン','#fff27a'],
+'blue+red+white':['ライトパープル','#c6a6ef'],'blue+red+yellow':['黒','#151515'],'blue+white+yellow':['ライトグリーン','#aee58f'],'red+white+yellow':['ライトオレンジ','#ffc483'],'blue+red+white+yellow':['グレー','#9da3aa']};
+const mixKey=cs=>[...new Set(cs||[])].filter(c=>BASE.includes(c)).sort().join('+');
+const ENTRY={};
+TOP.forEach((l,i)=>ENTRY[l]={x:i,y:-1,d:2});
+RIGHT.forEach((l,i)=>ENTRY[l]={x:W,y:i,d:3});
+BOTTOM.forEach((l,i)=>ENTRY[l]={x:i,y:H,d:0});
+LEFT.forEach((l,i)=>ENTRY[l]={x:-1,y:i,d:1});
+const LABELS=[...TOP,...RIGHT,...BOTTOM,...LEFT];
+const cellName=(x,y)=>LEFT[y]+(x+1);
+function poly(p){const k=KINDS[p.k];let pts=SHAPES[k.s].map(([a,b])=>p.f?[-a,b]:[a,b]);for(let i=0;i<(p.r&3);i++)pts=pts.map(([a,b])=>[-b,a]);const mx=Math.min(...pts.map(q=>q[0])),my=Math.min(...pts.map(q=>q[1]));return pts.map(([a,b])=>[a-mx+p.x,b-my+p.y]);}
+function inside(pt,P){let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const[xi,yi]=P[i],[xj,yj]=P[j];if((yi>pt[1])!==(yj>pt[1])&&pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi)c=!c;}return c;}
+const QC=[[.5,1/6],[5/6,.5],[.5,5/6],[1/6,.5]];
+function quarters(P){const xs=P.map(q=>q[0]),ys=P.map(q=>q[1]);const o=[];for(let y=Math.min(...ys);y<Math.max(...ys);y++)for(let x=Math.min(...xs);x<Math.max(...xs);x++)for(let q=0;q<4;q++)if(inside([x+QC[q][0],y+QC[q][1]],P))o.push([x,y,q]);return o;}
+function size(p){const P=poly({...p,x:0,y:0});return[Math.max(...P.map(q=>q[0])),Math.max(...P.map(q=>q[1]))];}
+function fits(p){const[w,h]=size(p);return p.x>=0&&p.y>=0&&p.x+w<=W&&p.y+h<=H;}
+function build(L){const own=new Array(W*H*4).fill(-1);let oob=false,over=false;L.forEach((p,i)=>{if(!fits(p))oob=true;for(const[x,y,q]of quarters(poly(p))){if(x<0||y<0||x>=W||y>=H)continue;const j=(y*W+x)*4+q;if(own[j]>=0)over=true;else own[j]=i;}});return{own,L,oob,over,at:(x,y,q)=>(x<0||y<0||x>=W||y>=H)?-1:own[(y*W+x)*4+q]};}
+function contacts(B){const t=[];const add=(a,b)=>{if(a>=0&&b>=0&&a!==b)t.push([a,b])};for(let y=0;y<H;y++)for(let x=0;x<W;x++){const c=[0,1,2,3].map(q=>B.at(x,y,q));for(let q=0;q<4;q++)add(c[q],c[(q+1)%4]);if(x<W-1)add(c[1],B.at(x+1,y,3));if(y<H-1)add(c[2],B.at(x,y+1,0));}return t;}
+const mid=(x,y,nx,ny)=>[(x+nx)/2+.5,(y+ny)/2+.5];
+function exitLabel(nx,ny){if(ny<0)return TOP[nx];if(ny>=H)return BOTTOM[nx];if(nx<0)return LEFT[ny];return RIGHT[ny];}
+function trace(B,lab){const e=ENTRY[lab];let x=e.x,y=e.y,d=e.d;const pts=[mid(x,y,x+DX[d],y+DY[d])];const cols=new Set(),hit=new Set();
+  const take=i=>{hit.add(i);const col=KINDS[B.L[i].k].c;if(col==='black')return true;if(BASE.includes(col))cols.add(col);return false;};
+  const fin=(exit,abs)=>({exit,colors:[...cols].sort(),pts,hit:[...hit],absorbed:abs});
+  for(let s=0;s<600;s++){
+    const cur=B.at(x,y,d);
+    if(cur>=0){pts.push([x+.5,y+.5]);if(take(cur))return fin(null,true);const lat=B.at(x,y,(d+1)%4)>=0?(d+1)%4:(d+3)%4;d=(lat+2)%4;continue;}
+    const nx=x+DX[d],ny=y+DY[d];
+    if(nx<0||ny<0||nx>=W||ny>=H){if(s>0)pts.push(mid(x,y,nx,ny));return fin(exitLabel(nx,ny),false);}
+    const back=(d+2)%4,i=B.at(nx,ny,back);
+    if(i>=0){pts.push(mid(x,y,nx,ny));if(take(i))return fin(null,true);d=back;continue;}
+    x=nx;y=ny;}
+  return fin(null,true);}
+function check(L){const B=build(L);const touch=contacts(B);const seen=new Set();for(const l of LABELS)trace(B,l).hit.forEach(i=>seen.add(i));const hidden=L.map((_,i)=>i).filter(i=>!seen.has(i));const all=ACTIVE.every(k=>L.some(p=>p.k===k))&&L.length===ACTIVE.length;return{all,oob:B.oob,over:B.over,touch,hidden,ok:all&&!B.oob&&!B.over&&!touch.length&&!hidden.length};}
+const rnd=n=>Math.floor(Math.random()*n);
+function randomLayout(){for(let t=0;t<4000;t++){const L=[];let bad=false;for(const k of ACTIVE){if(bad)break;let ok=false;for(let a=0;a<80;a++){const p={k,r:rnd(4),f:rnd(2)===1,x:0,y:0};const[w,h]=size(p);p.x=rnd(W-w+1);p.y=rnd(H-h+1);const B=build([...L,p]);if(!B.over&&!contacts(B).length){L.push(p);ok=true;break}}if(!ok)bad=true}if(!bad&&check(L).ok)return L}return null}
+function grid(L){const B=build(L);return B.own.map(i=>i<0?'':KINDS[L[i].k].c).join(',');}
+function resolve(a,L){const B=build(L);if(a.type==='wave'){const t=trace(B,a.entry);return{exit:t.exit,colors:t.colors,absorbed:t.absorbed}}
+  if(a.type==='ask'){const[x,y]=a.cell;let c='';for(let q=0;q<4;q++){const i=B.at(x,y,q);if(i>=0)c=KINDS[L[i].k].c}return{color:c}}
+  if(a.type==='guess')return{correct:grid(a.layout||[])===grid(L)};return{};}
+// ===== LOGIC-END =====
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let LS=null;try{LS=window.localStorage}catch(e){}
+const lsGet=k=>{try{return LS?.getItem(k)||''}catch(e){return''}};
+const lsSet=(k,v)=>{try{LS?.setItem(k,v)}catch(e){}};
+const S={screen:'boot',db:null,user:null,uid:null,nick:lsGet('om-nick'),code:'',g:null,acts:[],my:[],myLoaded:false,memo:{p:[],m:{}},tool:'wave',sel:null,aim:null,hover:null,focus:null,tab:'opp',rooms:[],solo:null,noDb:false,unsub:[],round:0,proc:new Set(),starting:false,revealing:false,showTruth:true};
+let Q=Promise.resolve();
+const wq=fn=>(Q=Q.then(fn).catch(errToast));
+function errToast(e){console.warn(e);const c=e?.code;toast(c==='invalid_argument'?'保存できませんでした。この部屋に書き込む権限がない可能性があります':c==='resource_exhausted'?'操作が速すぎます。少し待ってからもう一度':c==='quota_exceeded'?'保存領域がいっぱいです':'通信に失敗しました。もう一度お試しください');}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+function dlg(html,btns){return new Promise(res=>{const b=$('#dlgbox');b.innerHTML=html+'<div class="row" style="justify-content:flex-end">'+btns.map((x,i)=>`<button class="btn ${x.c||''}" data-i="${i}">${esc(x.t)}</button>`).join('')+'</div>';const d=$('#dlg');d.classList.add('open');b.querySelectorAll('button[data-i]').forEach(el=>el.onclick=()=>{d.classList.remove('open');res(btns[+el.dataset.i].v)});b.querySelector('.btn.pri')?.focus();});}
+
+// ---- drawing ----
+const U=40,M=44;
+const px=v=>M+v*U;
+function gemDefs(){return'<defs>'+Object.entries(GEM).map(([k,g])=>`<linearGradient id="gg-${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${g.l}"/><stop offset=".55" stop-color="${g.c}"/><stop offset="1" stop-color="${g.d}"/></linearGradient>`).join('')+'<pattern id="rockp" width="80" height="80" patternUnits="userSpaceOnUse"><rect width="80" height="80" fill="#3d3346"/><circle cx="12" cy="18" r="1.4" fill="#ffffff0d"/><circle cx="52" cy="44" r="1.1" fill="#ffffff0d"/><circle cx="30" cy="66" r="1.8" fill="#0000001a"/><circle cx="68" cy="10" r="1.6" fill="#0000001a"/></pattern></defs>';}
+function gemSVG(p,o={}){const P=poly(p);const k=KINDS[p.k];const pts=P.map(([a,b])=>px(a)+','+px(b)).join(' ');const cx=P.reduce((s,q)=>s+q[0],0)/P.length,cy=P.reduce((s,q)=>s+q[1],0)/P.length;const inner=P.map(([a,b])=>px(cx+(a-cx)*.62)+','+px(cy+(b-cy)*.62)).join(' ');
+  if(o.ghost)return`<polygon points="${pts}" fill="${o.ok?`url(#gg-${k.c})`:'#ff8a8055'}" opacity="${o.ok?.6:.9}" stroke="${o.ok?'#fff':'#ff8a80'}" stroke-width="2.5" stroke-dasharray="${o.ok?'0':'6 4'}"/>`;
+  if(o.outline)return`<polygon points="${pts}" fill="none" stroke="${GEM[k.c].c}" stroke-width="3" stroke-dasharray="7 5" opacity=".9"/>`;
+  return`<g opacity="${o.op??1}"><polygon points="${pts}" fill="url(#gg-${k.c})" fill-opacity="${k.c==='clear'?.5:1}" stroke="${GEM[k.c].d}" stroke-width="2" stroke-linejoin="round"/><polygon points="${inner}" fill="#ffffff22" stroke="#ffffff55" stroke-width="1"/></g>`;}
+function labPos(l){let i=TOP.indexOf(l);if(i>=0)return[px(i+.5),M/2];i=RIGHT.indexOf(l);if(i>=0)return[px(W)+M/2,px(i+.5)];i=BOTTOM.indexOf(l);if(i>=0)return[px(i+.5),px(H)+M/2];i=LEFT.indexOf(l);return[M/2,px(i+.5)];}
+function lum(h){if(!h||h[0]!=='#')return 1;const n=parseInt(h.slice(1),16);return(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;}
+function boardSVG(id,o){const vw=px(W)+M,vh=px(H)+M;let s=`<svg viewBox="0 0 ${vw} ${vh}" data-b="${id}" role="img" aria-label="鉱山の盤面">${gemDefs()}`;
+  s+=`<rect x="${M}" y="${M}" width="${W*U}" height="${H*U}" fill="url(#rockp)" rx="4"/>`;
+  for(let i=1;i<W;i++)s+=`<line x1="${px(i)}" y1="${M}" x2="${px(i)}" y2="${px(H)}" stroke="#ffffff18"/>`;
+  for(let j=1;j<H;j++)s+=`<line x1="${M}" y1="${px(j)}" x2="${px(W)}" y2="${px(j)}" stroke="#ffffff18"/>`;
+  for(let i=0;i<=W;i++)for(let j=0;j<=H;j++)s+=`<circle cx="${px(i)}" cy="${px(j)}" r="1.6" fill="#ffffff30"/>`;
+  s+=`<rect x="${M}" y="${M}" width="${W*U}" height="${H*U}" fill="none" stroke="#ffffff45" stroke-width="2" rx="4"/>`;
+  for(const[key,v]of Object.entries(o.marks||{})){const[x,y]=key.split(',').map(Number);const cx=px(x+.5),cy=px(y+.5);s+=v?`<path d="M${cx-9} ${cy-9}L${cx+9} ${cy+9}M${cx+9} ${cy-9}L${cx-9} ${cy+9}" stroke="#ffffff70" stroke-width="3" stroke-linecap="round"/>`:`<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="#ffd27a" stroke-width="3"/>`;}
+  for(const a of o.asks||[])s+=`<rect x="${px(a.x)+3}" y="${px(a.y)+3}" width="${U-6}" height="${U-6}" rx="6" fill="${a.c?GEM[a.c].c:'none'}" fill-opacity="${a.c?.35:0}" stroke="${a.c?GEM[a.c].c:'#ffffff80'}" stroke-width="2.5" stroke-dasharray="${a.c?'0':'4 4'}"/>`;
+  (o.outline||[]).forEach(p=>s+=gemSVG(p,{outline:true}));
+  (o.pieces||[]).forEach(p=>s+=gemSVG(p,{op:o.op}));
+  for(const pa of o.paths||[]){const pts=pa.pts.map(([a,b])=>px(a)+','+px(b)).join(' ');s+=`<polyline points="${pts}" fill="none" stroke="#1f1a21" stroke-width="${pa.w?pa.w+4:9}" stroke-linejoin="round" stroke-linecap="round" opacity=".7"/><polyline points="${pts}" fill="none" stroke="${pa.col==='none'?'#f4ecdd':pa.col}" stroke-width="${pa.w||5}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${pa.dash?'8 7':'0'}"/>`;const[a,b]=pa.pts[0];s+=`<circle cx="${px(a)}" cy="${px(b)}" r="6" fill="#f4ecdd"/>`;}
+  s+=`<g id="ghost-${id}"></g><g id="prev-${id}"></g>`;
+  for(const l of LABELS){const[x,y]=labPos(l);const st=o.labs?.[l];const fill=st?.fill&&st.fill!=='none'?st.fill:'#2a2330';const tc=lum(fill)>.6?'#231c26':'#f4ecdd';const ring=o.hi?.includes(l)?'#ffffff':(o.aim===l?'#ffd27a':'transparent');
+    s+=`<g class="lab${o.labClick?'':' dis'}" data-lab="${l}" data-pair="${[...(o.pairs?.[l]||[])].join(',')}" ${o.labClick?'tabindex="0" role="button"':''} aria-label="${l}番"><circle class="r" cx="${x}" cy="${y}" r="17" fill="${fill}" stroke="${ring}" stroke-width="3"/>${st?.fill==='none'?`<circle cx="${x}" cy="${y}" r="13" fill="none" stroke="#f4ecdd" stroke-width="1.5" stroke-dasharray="3 3"/>`:''}${st?.abs?`<circle cx="${x}" cy="${y}" r="13" fill="none" stroke="#ff8a80" stroke-width="2"/>`:''}<text x="${x}" y="${y+6}" text-anchor="middle" font-size="17" font-weight="700" fill="${tc}" font-family="Zen Kaku Gothic New,sans-serif">${l}</text></g>`;}
+  return s+'</svg>';}
+function chipSVG(k){const p={k,r:0,f:false,x:0,y:0};const[w,h]=size(p);const P=poly(p);const sc=Math.min(80/w,40/h);const pts=P.map(([a,b])=>(50-w*sc/2+a*sc)+','+(24-h*sc/2+b*sc)).join(' ');return`<svg viewBox="0 0 100 48">${gemDefs()}<polygon points="${pts}" fill="url(#gg-${KINDS[k].c})" stroke="${GEM[KINDS[k].c].d}" stroke-width="1.5"/></svg>`;}
+function sw(colors,abs){if(abs)return'<span class="sw" style="background:#000;border-color:#ff8a80"></span>';const m=MIX[mixKey(colors)]||MIX[''];return m[1]==='none'?'<span class="sw none"></span>':`<span class="sw" style="background:${m[1]}"></span>`;}
+function colName(colors,abs){if(abs)return'吸収された';const k=mixKey(colors);const m=MIX[k]||MIX[''];return k.includes('+')?`${m[0]}（${k.split('+').map(c=>GEM[c].n).join('＋')}）`:m[0];}
+$('#ctab').innerHTML=Object.entries(MIX).map(([k,v])=>`<div>${v[1]==='none'?'<span class="sw none"></span>':`<span class="sw" style="background:${v[1]}"></span>`}<b>${v[0]}</b> <span class="muted">${k?k.split('+').map(c=>GEM[c].n).join('＋'):'当たりなし'}</span></div>`).join('');
+
+// ---- game helpers ----
+const G=()=>S.mode==='solo'?S.solo.g:S.g;
+const acts=()=>S.mode==='solo'?S.solo.acts:S.acts;
+const oppId=()=>{const g=G();if(!g)return'';return g.hostId===S.uid?g.guestId:g.hostId;};
+const nameOf=id=>{const g=G();if(!g)return'';if(S.mode==='solo')return id===S.uid?(S.nick||'あなた'):'練習用の鉱山';return(id===g.hostId?g.hostName:g.guestName)||'名無しの探検家';};
+const myPending=()=>acts().some(a=>a.by===S.uid&&a.status==='pending');
+const myTurn=()=>{const g=G();return g&&g.phase==='play'&&g.turn===S.uid&&!myPending();};
+const gameRef=()=>S.db.doc('games/'+S.code);
+const privRef=k=>S.db.collection('data/users/'+S.uid).doc(`${S.code}_${G().round}_${k}`);
+function consistent(a,memo){if(a.status!=='done'||a.type!=='wave')return null;const B=build(memo);const t=trace(B,a.entry);return t.exit===a.result.exit&&mixKey(t.colors)===mixKey(a.result.colors)&&t.absorbed===!!a.result.absorbed;}
+let memoTimer;function memoChanged(){if(S.mode!=='online')return;clearTimeout(memoTimer);memoTimer=setTimeout(()=>wq(()=>privRef('memo').set({p:S.memo.p,m:S.memo.m})),1500);}
+
+// ---- render ----
+function render(){const app=$('#app');const g=G();setNet(NET.state);
+  $('#topbtn').innerHTML=S.screen==='room'?`<button class="btn ghost sm" data-act="leave">ロビーへ戻る</button>`:'';
+  if(S.screen==='boot')app.innerHTML='<div class="panel pulse">接続しています…</div>';
+  else if(S.screen==='lobby')app.innerHTML=lobbyHTML();
+  else if(g&&g.phase==='setup')app.innerHTML=setupHTML();
+  else if(g)app.innerHTML=playHTML();
+  drawGhost();hlAim();}
+function lobbyHTML(){const demo=S._demo||(S._demo=randomLayout());const B=build(demo);const paths=['3','C','14'].map(l=>{const t=trace(B,l);return{pts:t.pts,col:(MIX[mixKey(t.colors)]||MIX[''])[1]}});
+  const online=!S.noDb;return`<div class="lobby"><div class="panel hero"><div class="board">${boardSVG('demo',{pieces:demo,paths,labs:{}})}</div><div class="cap muted small">盤の端の番号から超音波を撃つと、宝石の面で反射し、当たった宝石の色が混ざって出てきます（図は見本）。</div></div>
+  <div class="stack"><div class="panel stack"><h2>友達と対戦</h2>${online?`<div class="field"><label for="nick">あなたの名前</label><input type="text" id="nick" maxlength="16" value="${esc(S.nick)}" placeholder="例：たろう"></div>
+   <div class="row"><button class="btn pri" data-act="create">部屋を作る</button><span class="muted small">作ると招待リンクと部屋コードが出ます</span></div>${S.prefill?`<p style="margin:0" class="small"><b>部屋 ${esc(S.prefill)} に招待されています。</b>名前を入れて「参加」を押してください。</p>`:''}
+   <div class="field"><label for="joincode">部屋コードで参加</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="joincode" maxlength="5" placeholder="例：K7QMP" style="text-transform:uppercase" value="${esc(S.prefill||'')}"><button class="btn" data-act="join">参加</button></div></div>
+   <details><summary class="small">つながらないとき</summary><p>二人ともこのページを開いたままにしてください。部屋を作った人がページを閉じると、相手は入れません。会社や学校のネットワーク、一部のモバイル回線ではつながらないことがあります。その場合は家庭のWi-Fiなど別の回線で試してください。</p></details>`
+   :`<p class="muted">通信用のライブラリを読み込めなかったため、対戦機能が使えません。インターネット接続を確認してページを再読み込みしてください。下の練習モードはこのままでも遊べます。</p>`}</div>
+   ${S.rooms.length?`<div class="panel stack"><h3>続きから</h3>${S.rooms.map(r=>`<button class="btn" style="justify-content:space-between" data-act="open" data-code="${esc(r.code)}"><span>${esc(r.code)}</span><span class="muted small">${esc(r.hostName||'')} vs ${esc(r.guestName||'募集中')} · ${r.phase==='done'?'終了':r.phase==='play'?'対戦中':'準備中'}</span></button>`).join('')}</div>`:''}
+   <div class="panel stack"><h3>ひとりで練習</h3><p class="muted small" style="margin:0">ランダムに作られた鉱山を相手に、操作と推理の練習ができます。</p><div><button class="btn" data-act="solo">練習を始める</button></div></div></div></div>`;}
+function palHTML(L){return`<div class="pal">${ACTIVE.map(i=>{const k=KINDS[i];const used=L.some(p=>p.k===i);return`<button class="chip${S.sel?.k===i?' sel':''}${used&&S.sel?.k!==i?' used':''}" data-act="pick" data-k="${i}" aria-label="${k.n}">${chipSVG(i)}${esc(k.n)}</button>`}).join('')}</div>
+  <div class="row small muted"><button class="btn sm" data-act="rot">↻ 回転</button><button class="btn sm" data-act="flip">⇋ 裏返し</button><span>キーボードは <span class="kbd">R</span> 回転・<span class="kbd">F</span> 裏返し・<span class="kbd">Esc</span> 取り消し。置いた宝石をクリックすると持ち上げられます。</span></div>`;}
+function setupHTML(){const g=S.g;const ck=check(S.my);const ready=!!g.ready?.[S.uid];const opp=oppId();const oppReady=opp&&g.ready?.[opp];
+  const B=build(S.my);const paths=S.focus?[(()=>{const t=trace(B,S.focus);return{pts:t.pts,col:(MIX[mixKey(t.colors)]||MIX[''])[1],res:t}})()]:[];
+  const labs={};if(paths[0]){const r=paths[0].res;const f=(MIX[mixKey(r.colors)]||MIX[''])[1];labs[S.focus]={fill:f};if(r.exit)labs[r.exit]={fill:f};}
+  const items=[[ck.all,`宝石${ACTIVE.length}個をすべて置いた`],[!ck.oob&&!ck.over,'はみ出し・重なりがない'],[!ck.touch.length,'宝石どうしの辺が接していない'],[!ck.hidden.length,'どの宝石にもいずれかの端から超音波が届く']];
+  return`<div class="status${ready?'':' me'}"><div><div class="turn">${ready?'相手の準備を待っています':'自分の鉱山に宝石を隠してください'}</div><div class="small muted">${opp?`${esc(nameOf(opp))}さん：${oppReady?'準備完了':'配置中…'}`:'まだ相手が来ていません'}${g.settings?.clear||g.settings?.black?`　拡張：${[g.settings.clear&&'無色の小三角',g.settings.black&&'黒の小三角'].filter(Boolean).join('・')}`:''}</div></div>
+  ${!opp?`<div class="row"><span class="muted small">部屋コード</span><span class="code">${esc(S.code)}</span><button class="btn sm" data-act="copy">招待リンクをコピー</button></div>`:''}</div>
+  <div class="play"><section><div class="board">${boardSVG('setup',{pieces:S.my,paths,labs,labClick:true})}</div>
+   ${ready?`<div class="bar"><div class="grow">配置は確定済みです。相手には見えません。</div><button class="btn" data-act="unready">配置を直す</button></div>`:`<div class="bar" style="display:grid;gap:10px">${palHTML(S.my)}</div>`}</section>
+  <aside class="side"><div class="panel stack"><h3>配置チェック</h3><ul class="checks">${items.map(([ok,t])=>`<li class="${ok?'':'x'}">${t}</li>`).join('')}</ul>
+   ${ready?'':`<div class="row"><button class="btn pri" data-act="ready" ${ck.ok?'':'disabled'}>この配置で準備完了</button><button class="btn" data-act="random">おまかせ配置</button><button class="btn ghost" data-act="clear">全部外す</button></div>`}</div>
+   <div class="panel stack"><h3>試し撃ち</h3><p class="muted small" style="margin:0">盤の端の番号を押すと、その位置から撃った超音波が自分の鉱山でどう進むか確かめられます。相手にどう見えるかの確認に使えます。</p>${paths[0]?`<div>${esc(S.focus)} → <b>${esc(paths[0].res.exit||'—')}</b>　${sw(paths[0].res.colors,paths[0].res.absorbed)}${esc(colName(paths[0].res.colors,paths[0].res.absorbed))}</div>`:''}</div></aside></div>`;}
+function playHTML(){const g=G();const opp=oppId();const A=acts();const mine=A.filter(a=>a.by===S.uid),theirs=A.filter(a=>a.by===opp);const done=g.phase==='done';const turnMe=myTurn();
+  const L=g.lives||{};const hearts=id=>'♥'.repeat(Math.max(0,L[id]??0))+'<span style="opacity:.3">'+'♥'.repeat(Math.max(0,(g.settings?.lives||2)-(L[id]??0)))+'</span>';
+  const waves=id=>A.filter(a=>a.by===id&&a.type==='wave').length;
+  let head;if(done){const win=g.winner===S.uid;const truth=S.mode==='solo'?S.solo.secret:g.reveal?.[opp];head=`<div class="banner"><div><h2>${win?'あなたの勝ち！':S.mode==='solo'?'ライフがなくなりました':`${esc(nameOf(g.winner))}さんの勝ち`}</h2><div>${win?`超音波${waves(S.uid)}回で鉱山を特定しました。`:'相手が先に宝石の配置を特定しました。'}${truth?'':' 相手の配置は相手の画面が開くと表示されます。'}</div></div><div class="row">${truth?`<button class="btn sm" data-act="truth">${S.showTruth?'自分のメモを表示':'正解を表示'}</button>`:''}<button class="btn pri" data-act="again">${S.mode==='solo'?'新しい練習':'もう一度対戦'}</button></div></div>`;}
+  else head=`<div class="status${turnMe?' me':''}"><div><div class="turn">${turnMe?'あなたの番です':myPending()?`<span class="pulse">${esc(nameOf(opp))}さんの鉱山が応答中…</span>`:`${esc(nameOf(opp))}さんの番です`}</div><div class="small muted">${turnMe?'超音波を撃つ・'+(g.settings?.ask?'マスを調べる・':'')+'解答を出す、のどれか1つ':myPending()?'相手がこのページを開いていると数秒で結果が届きます':'相手の手を待っています。その間も推理メモは自由に書けます'}</div></div>
+   <div class="pl"><div><b>${esc(nameOf(S.uid))}</b> <span class="hearts">${hearts(S.uid)}</span> <span class="muted">超音波${waves(S.uid)}回</span></div><div><b>${esc(nameOf(opp))}</b> <span class="hearts">${hearts(opp)}</span> <span class="muted">超音波${waves(opp)}回</span></div></div></div>`;
+  const labs={};const asks=[];const hi=[];let paths=[];
+  for(const a of mine){if(a.status!=='done')continue;if(a.type==='wave'){const f=a.result.absorbed?'#000':(MIX[mixKey(a.result.colors)]||MIX[''])[1];labs[a.entry]={fill:f,abs:a.result.absorbed};if(a.result.exit)labs[a.result.exit]={fill:f};}if(a.type==='ask')asks.push({x:a.cell[0],y:a.cell[1],c:a.result.color});}
+  const fa=mine.find(a=>a.id===S.focus);if(fa&&fa.type==='wave'){hi.push(fa.entry);if(fa.result?.exit)hi.push(fa.result.exit);const t=trace(build(S.memo.p),fa.entry);if(S.memo.p.length)paths.push({pts:t.pts,col:'#f4ecdd',dash:true,w:3});}
+  if(S.aim&&S.memo.p.length&&!done){const t=trace(build(S.memo.p),S.aim);paths.push({pts:t.pts,col:'#ffd27a',dash:true,w:3});}
+  const truth=done&&(S.mode==='solo'?S.solo.secret:g.reveal?.[opp]);
+  const pairsOf=list=>{const m={};for(const a of list){if(a.type!=='wave'||a.status!=='done')continue;const e=a.entry,x=a.result.exit;(m[e]=m[e]||new Set()).add(e);if(x){m[e].add(x);(m[x]=m[x]||new Set()).add(e).add(x);}}return m;};
+  const oppBoard=boardSVG('opp',{pairs:pairsOf(mine),pieces:truth&&S.showTruth?truth:S.memo.p,outline:truth&&S.showTruth?S.memo.p:[],marks:S.memo.m,labs,asks,hi,paths,aim:S.aim,labClick:!done});
+  const tools=[['wave','超音波を撃つ'],['gem','宝石メモ'],['mark','空きマスの印'],...(g.settings?.ask?[['ask','マスを調べる']]:[])];
+  let bar='';
+  if(done)bar=`<div class="grow muted small">${truth&&S.showTruth?'塗りつぶしが正解の配置、点線があなたの推理メモです。':'あなたの推理メモを表示しています。'}</div>`;
+  else if(S.tool==='wave')bar=S.aim?`<div class="grow"><b>${esc(S.aim)}</b>番から撃ちますか？ ${(()=>{const t=trace(build(S.memo.p),S.aim);return S.memo.p.length?`<span class="muted small">メモ上の予想：${esc(t.exit||'吸収')}・${esc(colName(t.colors,t.absorbed))}</span>`:''})()}</div><button class="btn pri" data-act="fire" ${turnMe?'':'disabled'}>発射</button><button class="btn ghost" data-act="unaim">やめる</button>`:`<div class="grow muted small">${turnMe?'盤の端の番号を選ぶと、撃つ前に確認が出ます。':'相手の番のあいだも番号を選んでメモ上の予想を確かめられます。'}</div>`;
+  else if(S.tool==='gem')bar=`<div style="display:grid;gap:10px;width:100%">${palHTML(S.memo.p)}</div>`;
+  else if(S.tool==='mark')bar=`<div class="grow muted small">宝石がないと分かったマスを押すと × が付きます。もう一度押すと消えます。</div>`;
+  else bar=`<div class="grow muted small">${turnMe?'調べたいマスを押してください。そのマスにある宝石の色（形や向きは分かりません）が返ってきます。':'自分の番になったら使えます。'}</div>`;
+  const NK=ACTIVE.length;const ok=S.memo.p.length===NK;
+  const logRows=mine.length?mine.slice().reverse().map(a=>{const c=S.memo.p.length===NK?consistent(a,S.memo.p):null;let body;
+    if(a.status!=='done')body=`<span class="io">${a.type==='wave'?esc(a.entry)+' → …':a.type==='ask'?esc(cellName(...a.cell))+' を調査':'解答を提出'}</span> <span class="muted small pulse">応答待ち</span>`;
+    else if(a.type==='wave')body=`<span class="io">${esc(a.entry)} → ${esc(a.result.exit||'×')}</span> ${sw(a.result.colors,a.result.absorbed)}${esc(colName(a.result.colors,a.result.absorbed))}`;
+    else if(a.type==='ask')body=`<span class="io">${esc(cellName(...a.cell))}</span> ${a.result.color?`<span class="sw" style="background:${GEM[a.result.color].c}"></span>${GEM[a.result.color].n}の宝石`:'何もない'}`;
+    else body=`<span class="io">解答</span> ${a.result.correct?'正解！':'不正解（ライフ−1）'}`;
+    return`<div class="lr${S.focus===a.id?' f':''}" data-act="focus" data-id="${esc(a.id)}" data-io="${a.type==='wave'?esc(a.entry)+','+esc(a.result?.exit||''):''}"><span class="n">#${a.seq}</span><span>${body}</span>${c===null?'<span></span>':`<span class="ck ${c?'y':'n'}">${c?'メモと一致':'メモと矛盾'}</span>`}</div>`}).join(''):'<div class="empty">まだ観測がありません。盤の端の番号から超音波を撃ってみましょう。</div>';
+  const nc=mine.filter(a=>a.type==='wave'&&a.status==='done');const agree=S.memo.p.length===NK?nc.filter(a=>consistent(a,S.memo.p)).length:0;
+  const mineB=S.mode==='solo'?'':(()=>{const ft=theirs.find(a=>a.id===S.focus);const Bm=build(S.my);const ps=theirs.filter(a=>a.type==='wave'&&a.status==='done'&&(!ft||a.id===ft.id)).slice(-(ft?1:3)).map(a=>{const t=trace(Bm,a.entry);return{pts:t.pts,col:(MIX[mixKey(t.colors)]||MIX[''])[1],w:3}});
+    const oa=theirs.filter(a=>a.type==='ask'&&a.status==='done').map(a=>({x:a.cell[0],y:a.cell[1],c:a.result.color}));
+    return`<div class="panel stack mineblk${S.tab==='mine'?'':' hide'}"><h3>自分の鉱山と相手の観測</h3><div class="board mini">${boardSVG('mine',{pieces:S.my,paths:ps,asks:oa,op:.9,pairs:pairsOf(theirs),labs:Object.fromEntries(theirs.filter(a=>a.type==='wave'&&a.status==='done').flatMap(a=>{const f=a.result.absorbed?'#000':(MIX[mixKey(a.result.colors)]||MIX[''])[1];return[[a.entry,{fill:f,abs:a.result.absorbed}],...(a.result.exit?[[a.result.exit,{fill:f}]]:[])]}))})}</div>
+     <div class="log" data-for="mine" style="max-height:220px">${theirs.length?theirs.slice().reverse().map(a=>`<div class="lr${S.focus===a.id?' f':''}" data-act="focus" data-id="${esc(a.id)}" data-io="${a.type==='wave'?esc(a.entry)+','+esc(a.result?.exit||''):''}"><span class="n">#${a.seq}</span><span>${a.type==='wave'?`<span class="io">${esc(a.entry)} → ${a.status==='done'?esc(a.result.exit||'×'):'…'}</span> ${a.status==='done'?sw(a.result.colors,a.result.absorbed)+esc(colName(a.result.colors,a.result.absorbed)):''}`:a.type==='ask'?`<span class="io">${esc(cellName(...a.cell))}</span> を調査`:`<span class="io">解答</span> ${a.status==='done'?(a.result.correct?'正解':'不正解'):'判定中'}`}</span><span></span></div>`).join(''):'<div class="empty">相手はまだ観測していません。</div>'}</div><div class="muted small">線は直近3回の経路です。行を押すとその1本だけ表示します。</div></div>`;})();
+  return head+(S.mode==='solo'?'':`<div class="tabs"><button class="btn sm ${S.tab!=='mine'?'on':''}" data-act="tab" data-t="opp">相手の鉱山</button><button class="btn sm ${S.tab==='mine'?'on':''}" data-act="tab" data-t="mine">自分の鉱山</button></div>`)+`<div class="play"><section class="${S.tab==='mine'?'mobhide':''}">
+   ${done?'':`<div class="tools">${tools.map(([t,n])=>`<button class="btn sm ${S.tool===t?'on':''}" data-act="tool" data-t="${t}">${n}</button>`).join('')}<span style="flex:1"></span><button class="btn sm pri" data-act="guess" ${turnMe&&ok?'':'disabled'} title="${ok?'':`宝石メモを${NK}個置くと提出できます`}">解答を提出</button></div>`}
+   <div class="board">${oppBoard}</div><div class="bar">${bar}</div></section>
+  <aside class="side"><div class="panel stack"><div class="row" style="justify-content:space-between"><h3>あなたの観測</h3>${S.memo.p.length===NK&&nc.length?`<span class="small ${agree===nc.length?'ck y':'muted'}">メモと一致 ${agree}/${nc.length}</span>`:''}</div><div class="log" data-for="opp">${logRows}</div>
+   ${!done&&!ok?`<div class="muted small">宝石メモを${NK}個置くと「解答を提出」できます。そろうと、メモが観測結果と合っているか自動で照合します。</div>`:''}</div>${mineB}</aside></div>`;}
+
+// ---- interactions ----
+function target(){return S.screen==='room'&&G()?.phase==='setup'?S.my:S.memo.p;}
+function ptr(e,svg){const r=svg.getBoundingClientRect();const vb=svg.viewBox.baseVal;return[((e.clientX-r.left)/r.width*vb.width-M)/U,((e.clientY-r.top)/r.height*vb.height-M)/U];}
+function ghostAt(bx,by){if(!S.sel)return null;const[w,h]=size(S.sel);let x=Math.round(bx-w/2),y=Math.round(by-h/2);x=Math.max(0,Math.min(W-w,x));y=Math.max(0,Math.min(H-h,y));return{...S.sel,x,y};}
+function placeErr(p,L,strict){const B=build([...L,p]);if(B.over)return'ほかの宝石と重なっています';if(strict&&contacts(B).some(([a,b])=>a===L.length||b===L.length))return'宝石どうしの辺が接しています（角どうしならOK）';return'';}
+function boardOK(id){const g=G();if(id==='setup')return!g.ready?.[S.uid];if(id==='opp')return g.phase!=='done';return false;}
+function hl(svg,l){const id=svg.dataset.b;const lab=svg.querySelector(`.lab[data-lab="${l}"]`);const pr=(lab?.dataset.pair||'').split(',').filter(Boolean);
+  svg.querySelectorAll('.lab').forEach(g=>{const on=pr.includes(g.dataset.lab);g.classList.toggle('hl',on);g.classList.toggle('dim',pr.length>0&&!on);});
+  document.querySelectorAll(`.log[data-for="${id}"] .lr`).forEach(r=>r.classList.toggle('hov',pr.length>0&&(r.dataset.io||'').split(',').includes(l)));}
+function hlClear(svg){svg.querySelectorAll('.lab').forEach(g=>g.classList.remove('hl','dim'));document.querySelectorAll(`.log[data-for="${svg.dataset.b}"] .lr`).forEach(r=>r.classList.remove('hov'));}
+function hlAim(){const svg=document.querySelector('svg[data-b=opp]');if(svg&&S.aim)hl(svg,S.aim);}
+document.addEventListener('pointerover',e=>{const lab=e.target.closest?.('.lab');const svg=lab?.closest('svg[data-b]');if(svg)hl(svg,lab.dataset.lab);});
+document.addEventListener('pointerout',e=>{const lab=e.target.closest?.('.lab');if(!lab||lab.contains(e.relatedTarget))return;const svg=lab.closest('svg[data-b]');if(!svg)return;hlClear(svg);if(svg.dataset.b==='opp')hlAim();});
+document.addEventListener('focusin',e=>{const lab=e.target.closest?.('.lab');const svg=lab?.closest('svg[data-b]');if(svg)hl(svg,lab.dataset.lab);});
+let LP=null;
+function drawGhost(){document.querySelectorAll('[id^=ghost-]').forEach(g=>{if(!LP||g.id!=='ghost-'+LP.id)g.innerHTML='';});if(!LP)return;const id=LP.id;const gh=document.getElementById('ghost-'+id);if(!gh)return;
+  if(!boardOK(id)||!(id==='setup'||S.tool==='gem')||!S.sel){gh.innerHTML='';return;}const p=ghostAt(LP.bx,LP.by);gh.innerHTML=gemSVG(p,{ghost:true,ok:!placeErr(p,target(),id==='setup')});}
+document.addEventListener('pointermove',e=>{const svg=e.target.closest?.('svg[data-b]');if(!svg)return;const[bx,by]=ptr(e,svg);LP={id:svg.dataset.b,bx,by};drawGhost();});
+document.addEventListener('pointerleave',e=>{if(e.target.matches?.('svg[data-b]'))document.querySelectorAll('[id^=ghost-]').forEach(g=>g.innerHTML='');},true);
+document.addEventListener('click',async e=>{const lab=e.target.closest('.lab');const svg=e.target.closest('svg[data-b]');
+  if(lab&&svg){onLabel(svg.dataset.b,lab.dataset.lab);return;}
+  if(svg&&!lab){onBoard(svg,e);return;}
+  const b=e.target.closest('[data-act]');if(b&&!b.disabled)onAct(b.dataset.act,b);});
+document.addEventListener('keydown',e=>{if(e.target.id==='joincode'&&e.key==='Enter'){onAct('join');return;}if(e.target.matches('input'))return;const lab=e.target.closest?.('.lab');if(lab&&(e.key==='Enter'||e.key===' ')){e.preventDefault();onLabel(lab.closest('svg').dataset.b,lab.dataset.lab);return;}
+  if(!S.sel)return;if(e.key==='r'||e.key==='R'){S.sel.r=(S.sel.r+1)&3;drawGhost();}else if(e.key==='f'||e.key==='F'){S.sel.f=!S.sel.f;drawGhost();}else if(e.key==='Escape'){S.sel=null;render();}});
+function onLabel(id,l){const g=G();if(id==='setup'){S.focus=S.focus===l?null:l;render();return;}
+  if(id==='opp'&&g.phase!=='done'){S.tool='wave';S.aim=S.aim===l?null:l;render();}}
+function onBoard(svg,e){const id=svg.dataset.b;if(!boardOK(id))return;const[bx,by]=ptr(e,svg);LP={id,bx,by};if(bx<0||by<0||bx>=W||by>=H)return;const cx=Math.floor(bx),cy=Math.floor(by);
+  if(id==='opp'&&S.tool==='mark'){const k=cx+','+cy;const m={...S.memo.m};if(m[k])delete m[k];else m[k]=1;S.memo.m=m;memoChanged();render();return;}
+  if(id==='opp'&&S.tool==='ask'){if(!myTurn())return toast('自分の番になったら調べられます');dlg(`<h3>${esc(cellName(cx,cy))} を調べますか？</h3><p class="muted" style="margin:0">この手番を使って、このマスにある宝石の色を聞きます。</p>`,[{t:'やめる',v:0},{t:'調べる',v:1,c:'pri'}]).then(v=>v&&send({type:'ask',cell:[cx,cy]}));return;}
+  if(id==='opp'&&S.tool!=='gem'){S.tool='gem';S.aim=null;}
+  const L=target();
+  if(S.sel){const p=ghostAt(bx,by);const err=placeErr(p,L,id==='setup');if(err)return toast(err);L.push(p);S.sel=null;afterEdit(id);return;}
+  const fx=bx-cx-.5,fy=by-cy-.5;const q=Math.abs(fy)>Math.abs(fx)?(fy<0?0:2):(fx>0?1:3);const B=build(L);const i=B.at(cx,cy,q);
+  if(i>=0){const p=L.splice(i,1)[0];S.sel={k:p.k,r:p.r,f:p.f};afterEdit(id);}else toast('下の一覧から宝石を選んでから盤に置いてください');}
+function afterEdit(id){if(id==='opp')memoChanged();else S.focus=null;render();}
+async function onAct(a,b){const g=G();
+  if(a==='pick'){const k=+b.dataset.k;const L=target();const i=L.findIndex(p=>p.k===k);if(S.sel?.k===k){S.sel=null;}else{if(i>=0){const p=L.splice(i,1)[0];S.sel={k,r:p.r,f:p.f};if(target()===S.memo.p)memoChanged();}else S.sel={k,r:0,f:false};}render();}
+  else if(a==='rot'){if(S.sel){S.sel.r=(S.sel.r+1)&3;drawGhost();}else toast('先に宝石を選んでください');}
+  else if(a==='flip'){if(S.sel){S.sel.f=!S.sel.f;drawGhost();}else toast('先に宝石を選んでください');}
+  else if(a==='random'){const L=randomLayout();if(L){S.my.splice(0,S.my.length,...L);S.sel=null;S.focus=null;render();}}
+  else if(a==='clear'){S.my.splice(0);S.sel=null;S.focus=null;render();}
+  else if(a==='ready'){if(!check(S.my).ok)return;const L=S.my.map(p=>({...p}));wq(async()=>{await privRef('mine').set({L});S.myLoaded=true;await gameRef().update({ready:{[S.uid]:true}});});}
+  else if(a==='unready'){if(g.phase==='setup')wq(()=>gameRef().update({ready:{[S.uid]:false}}));}
+  else if(a==='copy'){const url=location.origin+location.pathname+'#room-'+S.code;try{await navigator.clipboard.writeText(url);toast('招待リンクをコピーしました。友達に送ってください');}catch(e){toast('コピーできませんでした。部屋コードを直接伝えてください');}}
+  else if(a==='tool'){S.tool=b.dataset.t;if(S.tool!=='wave')S.aim=null;if(S.tool!=='gem')S.sel=null;render();}
+  else if(a==='unaim'){S.aim=null;render();}
+  else if(a==='fire'){if(!myTurn()||!S.aim)return;const l=S.aim;S.aim=null;send({type:'wave',entry:l});}
+  else if(a==='guess'){if(!myTurn()||S.memo.p.length!==ACTIVE.length)return;const lv=g.lives?.[S.uid]??1;const v=await dlg(`<h3>この推理メモで解答しますか？</h3><p class="muted" style="margin:0">残りライフ ${lv}。${lv<=1?'<b style="color:var(--bad)">外れると負けになります。</b>':'外れるとライフが1減り、手番が相手に移ります。'}</p>`,[{t:'やめる',v:0},{t:'提出する',v:1,c:'pri'}]);if(v)send({type:'guess',layout:S.memo.p.map(p=>({...p}))});}
+  else if(a==='focus'){S.focus=S.focus===b.dataset.id?null:b.dataset.id;render();}
+  else if(a==='tab'){S.tab=b.dataset.t;render();}
+  else if(a==='truth'){S.showTruth=!S.showTruth;render();}
+  else if(a==='again'){if(S.mode==='solo')startSolo(S.solo.g.settings);else rematch();}
+  else if(a==='leave'){leave();}
+  else if(a==='solo'){startSolo(await settingsDlg('練習の設定',false));}
+  else if(a==='create'){createRoom();}
+  else if(a==='join'){const c=($('#joincode').value||'').trim().toUpperCase();if(!/^[A-Z0-9]{5}$/.test(c))return toast('5文字の部屋コードを入力してください');saveNick();S.prefill='';openRoom(c);}
+  else if(a==='open'){openRoom(b.dataset.code);}}
+function saveNick(){const n=($('#nick')?.value||'').trim().slice(0,16);S.nick=n;lsSet('om-nick',n);}
+
+// ---- actions ----
+function send(a){const A=acts();const seq=A.reduce((m,x)=>Math.max(m,x.seq),0)+1;const g=G();
+  if(S.mode==='solo'){const act={...a,id:'s'+seq,seq,by:S.uid,to:'cpu',round:1,status:'done'};act.result=resolve(act,S.solo.secret);S.solo.acts.push(act);
+    if(a.type==='guess'){if(act.result.correct){g.phase='done';g.winner=S.uid;}else{g.lives[S.uid]--;toast('不正解でした。ライフが1減りました');if(g.lives[S.uid]<=0){g.phase='done';g.winner='cpu';}}}
+    S.focus=act.id;render();return;}
+  const id=`r${g.round}-${String(seq).padStart(3,'0')}`;const act={...a,seq,by:S.uid,to:oppId(),round:g.round,status:'pending',at:Date.now()};S.focus=id;
+  wq(()=>S.db.collection('games/'+S.code+'/acts').doc(id).set(act));}
+async function defend(a){const r=resolve(a,S.my);await S.db.collection('games/'+S.code+'/acts').doc(a.id).update({status:'done',result:r});const g=S.g;const up={turn:S.uid};
+  if(a.type==='guess'){if(r.correct){up.phase='done';up.winner=a.by;}else{const lv=(g.lives?.[a.by]??1)-1;up.lives={[a.by]:lv};if(lv<=0){up.phase='done';up.winner=S.uid;}}}
+  await gameRef().update(up);}
+function startSolo(st){if(!st)return;setActive(st);unsubAll();S.mode='solo';S.screen='room';S.uid=S.uid||'me';S.code='';S.solo={secret:randomLayout(),acts:[],g:{phase:'play',round:1,turn:S.uid,hostId:S.uid,guestId:'cpu',settings:st,lives:{[S.uid]:2,cpu:2}}};S.memo={p:[],m:{}};S.tool='wave';S.sel=null;S.aim=null;S.focus=null;S.showTruth=true;render();}
+function genCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return[...Array(5)].map(()=>A[rnd(A.length)]).join('');}
+function settingsDlg(title,online){const sel='min-height:40px;border-radius:10px;background:#0003;border:1px solid #fff4;padding:4px 8px';const cb='style="width:22px;height:22px;flex:none"';
+  return dlg(`<h3>${title}</h3><div class="stack" style="gap:10px"><div class="small muted">拡張ピース</div><label class="row" style="flex-wrap:nowrap"><input type="checkbox" id="optclear" ${cb}> 無色の小三角を追加（反射するが色を変えない）</label><label class="row" style="flex-wrap:nowrap"><input type="checkbox" id="optblack" ${cb}> 黒の小三角を追加（当たると吸収される）</label>
+   <div class="small muted">ルール</div><label class="row" style="flex-wrap:nowrap"><input type="checkbox" id="optask" ${cb} ${online?'':'checked'}> マスを調べる行動を使う</label>${online?`<label class="row">解答のライフ <select id="optlv" style="${sel}"><option value="2">2回まで</option><option value="1">1回のみ</option></select></label>`:''}</div>`,
+   [{t:'やめる',v:0},{t:online?'作成':'始める',v:1,c:'pri'}]).then(v=>v?{ask:$('#optask').checked,lives:online?+$('#optlv').value:2,clear:$('#optclear').checked,black:$('#optblack').checked}:null);}
+async function createRoom(){saveNick();const v=await settingsDlg('部屋の設定',true);
+  if(!v)return;const code=genCode();const body={code,hostId:S.uid,hostName:S.nick||'ホスト',guestId:'',guestName:'',players:[S.uid],settings:v,round:1,phase:'setup',ready:{},turn:'',winner:'',lives:{},reveal:{},createdAt:Date.now()};
+  netHost(code);wq(async()=>{await S.db.doc('games/'+code).set(body);openRoom(code);});}
+function unsubAll(){S.unsub.forEach(f=>{try{f()}catch(e){}});S.unsub=[];}
+function leave(){unsubAll();netClose();S.prefill='';setActive(null);S.screen='lobby';S.mode=null;S.g=null;S.acts=[];S.code='';S.sel=null;S.aim=null;S.focus=null;try{history.replaceState(null,'',location.pathname+location.search)}catch(e){location.hash=''}loadRooms();render();}
+function openRoom(code){unsubAll();S.joining=false;if(NET.code!==code){const st=lsJSON('om-store-'+code,{});if(st['games/'+code]?.hostId===S.uid)netHost(code);else netJoin(code);}S.mode='online';S.code=code;S.g=null;S.acts=[];S.round=0;S.screen='boot';render();
+  try{location.hash='room-'+code}catch(e){}
+  const timer=setTimeout(()=>{if(!S.g){toast('部屋に接続できませんでした。コードと、相手がページを開いているかを確認してください');leave();}},20000);
+  S.unsub.push(S.db.doc('games/'+code).onSnapshot(snap=>{if(!snap.exists){if(!snap.metadata.fromCache){clearTimeout(timer);toast('部屋が見つかりません。コードを確認してください');leave();}return;}clearTimeout(timer);onGame(snap.data());},e=>{clearTimeout(timer);errToast(e);}));}
+async function onGame(g){const prev=S.g;S.g=g;S.screen='room';setActive(g.settings);rememberRoom(g);
+  if(g.hostId!==S.uid&&!g.guestId&&!S.joining){S.joining=true;wq(()=>gameRef().update({guestId:S.uid,guestName:S.nick||'ゲスト',players:[g.hostId,S.uid]}));}
+  if(g.hostId!==S.uid&&g.guestId&&g.guestId!==S.uid){toast('この部屋はすでに2人そろっています');leave();return;}
+  if(g.round!==S.round){S.round=g.round;S.my=[];S.myLoaded=false;S.memo={p:[],m:{}};S.proc=new Set();S.focus=null;S.aim=null;S.sel=null;S.revealing=false;S.starting=false;subActs();
+    try{const m=await privRef('mine').get();if(m.exists){S.my=m.data().L||[];}const mm=await privRef('memo').get();if(mm.exists){const d=mm.data();S.memo={p:d.p||[],m:d.m||{}};}}catch(e){}
+    S.myLoaded=true;}
+  if(g.hostId===S.uid&&g.phase==='setup'&&g.guestId&&g.ready?.[g.hostId]&&g.ready?.[g.guestId]&&!S.starting){S.starting=true;const L=g.settings?.lives||2;wq(()=>gameRef().update({phase:'play',turn:Math.random()<.5?g.hostId:g.guestId,lives:{[g.hostId]:L,[g.guestId]:L}}));}
+  if(g.phase==='done'&&!g.reveal?.[S.uid]&&S.my.length&&!S.revealing){S.revealing=true;wq(()=>gameRef().update({reveal:{[S.uid]:S.my}}));}
+  if(prev&&prev.phase!=='play'&&g.phase==='play')toast(g.turn===S.uid?'対戦開始！あなたが先攻です':'対戦開始！相手が先攻です');
+  processPending();render();}
+function subActs(){const r=S.round;S.unsub.push(S.db.collection('games/'+S.code+'/acts').where('round','==',r).onSnapshot(snap=>{if(S.round!==r)return;S.acts=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.seq-b.seq);
+  const last=S.acts[S.acts.length-1];if(last&&last.by===S.uid&&last.status==='done'&&last.type==='guess'&&!last.result.correct&&S._lastToast!==last.id){S._lastToast=last.id;toast('不正解でした。ライフが1減りました');}
+  processPending();render();},errToast));}
+function processPending(){if(!S.myLoaded||!S.g||S.g.phase!=='play')return;for(const a of S.acts){if(a.status==='pending'&&a.to===S.uid&&a.by===S.g.turn&&!S.proc.has(a.id)){S.proc.add(a.id);wq(()=>defend(a));}}}
+function rematch(){const g=S.g;const body={code:g.code,hostId:g.hostId,hostName:g.hostName,guestId:g.guestId,guestName:g.guestName,players:g.players,settings:g.settings,round:(g.round||1)+1,phase:'setup',ready:{},turn:'',winner:'',lives:{},reveal:{},createdAt:g.createdAt};wq(()=>gameRef().set(body));}
+function loadRooms(){S.rooms=lsJSON('om-rooms',[]).slice(0,5);}
+function rememberRoom(g){const L=lsJSON('om-rooms',[]).filter(r=>r.code!==g.code);L.unshift({code:g.code,hostName:g.hostName,guestName:g.guestName,phase:g.phase,createdAt:g.createdAt});lsSet('om-rooms',JSON.stringify(L.slice(0,8)));}
+
+// ---- P2P sync (PeerJS) + local store ----
+const PFX='gsduel-v1-';
+const NET={peer:null,conn:null,role:null,code:null,retry:null,synced:false,pending:[],state:'',unavail:0};
+const DBS={shared:{},listeners:new Set()};
+function lsJSON(k,d){try{const v=LS?.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
+const isPriv=p=>p.startsWith('data/users/');
+function persist(){if(NET.code)lsSet('om-store-'+NET.code,JSON.stringify(DBS.shared));}
+function readPath(p){return isPriv(p)?lsJSON('om-p-'+p,null):(DBS.shared[p]??null);}
+function deepMerge(a,b){for(const[k,v]of Object.entries(b)){if(v&&typeof v==='object'&&!Array.isArray(v)&&a[k]&&typeof a[k]==='object'&&!Array.isArray(a[k]))deepMerge(a[k],v);else a[k]=clone(v);}return a;}
+function applyW(st,p,op,d){if(op==='set')st[p]=clone(d);else if(op==='update'){if(!st[p])return false;deepMerge(st[p],d);}else if(op==='del')delete st[p];return true;}
+function notify(){for(const f of[...DBS.listeners])f();}
+async function dbWrite(p,op,d){
+  if(isPriv(p)){if(op==='del'){try{LS?.removeItem('om-p-'+p)}catch(e){}}else{let v=clone(d);if(op==='update'){const cur=readPath(p);if(!cur)throw{code:'invalid_argument'};v=deepMerge(cur,d);}lsSet('om-p-'+p,JSON.stringify(v));}notify();return;}
+  if(op==='update'&&!DBS.shared[p])throw{code:'invalid_argument'};
+  applyW(DBS.shared,p,op,d);persist();notify();
+  if(NET.role==='host')broadcast();else if(NET.conn?.open)NET.conn.send({t:'w',path:p,op,data:clone(d)});else NET.pending.push({path:p,op,data:clone(d)});}
+function snapDoc(p){const d=readPath(p);return{id:p.split('/').pop(),exists:!!d,data:()=>clone(d)??undefined,metadata:{fromCache:NET.role==='guest'&&!NET.synced},_k:JSON.stringify(d)+'|'+NET.synced};}
+function snapCol(col,f){const docs=Object.entries(DBS.shared).filter(([p,d])=>p.slice(0,p.lastIndexOf('/'))===col&&f.every(([a,o,v])=>o==='=='?d[a]===v:o==='array-contains'?(d[a]||[]).includes(v):true)).map(([p,d])=>({id:p.split('/').pop(),exists:true,data:()=>clone(d)}));return{docs,size:docs.length,empty:!docs.length,metadata:{fromCache:false},_k:JSON.stringify(docs.map(x=>[x.id,x.data()]))};}
+function subscribe(mk,next){let last=null;const fn=()=>{const sn=mk();if(sn._k!==last){last=sn._k;try{next(sn)}catch(e){console.error(e)}}};DBS.listeners.add(fn);setTimeout(fn,0);return()=>DBS.listeners.delete(fn);}
+const mkDoc=p=>({id:p.split('/').pop(),path:p,get:async()=>snapDoc(p),set:d=>dbWrite(p,'set',d),update:d=>dbWrite(p,'update',d),delete:()=>dbWrite(p,'del'),onSnapshot:next=>subscribe(()=>snapDoc(p),next),collection:c=>mkCol(p+'/'+c)});
+const mkQ=(col,f)=>({where:(a,o,v)=>mkQ(col,[...f,[a,o,v]]),orderBy:()=>mkQ(col,f),limit:()=>mkQ(col,f),get:async()=>snapCol(col,f),onSnapshot:next=>subscribe(()=>snapCol(col,f),next)});
+const mkCol=col=>({...mkQ(col,[]),path:col,doc:id=>mkDoc(col+'/'+(id||Math.random().toString(36).slice(2,10)))});
+const LDB={doc:mkDoc,collection:mkCol};
+function setNet(st){NET.state=st;const el=$('#net');if(!el)return;const m={connected:['ok','相手と接続中'],waiting:['wait','相手の接続を待っています'],connecting:['wait','接続しています…'],lost:['bad','相手との接続が切れています。自動で再接続します']}[st];el.innerHTML=m&&S.mode==='online'?`<span class="dot ${m[0]}"></span>${m[1]}`:'';}
+function netClose(){clearTimeout(NET.retry);try{NET.peer?.destroy()}catch(e){}Object.assign(NET,{peer:null,conn:null,role:null,code:null,synced:false,pending:[],unavail:0});setNet('');}
+function broadcast(){if(NET.conn?.open)NET.conn.send({t:'state',docs:DBS.shared});}
+const netErr=t=>['network','server-error','socket-error','socket-closed','browser-incompatible','webrtc'].includes(t);
+function netHost(code){netClose();NET.role='host';NET.code=code;NET.synced=true;DBS.shared=lsJSON('om-store-'+code,{});startHost();}
+function startHost(){if(NET.role!=='host')return;const code=NET.code;const p=new Peer(PFX+code,{debug:0});NET.peer=p;setNet('connecting');
+  p.on('open',()=>{if(NET.peer===p)setNet(NET.conn?.open?'connected':'waiting');});
+  p.on('connection',c=>{c.on('data',m=>onHostMsg(c,m));c.on('close',()=>{if(NET.conn===c){NET.conn=null;setNet('waiting');}});});
+  p.on('disconnected',()=>{if(NET.peer===p&&!p.destroyed)try{p.reconnect()}catch(e){}});
+  p.on('error',e=>{if(NET.peer!==p)return;if(e.type==='unavailable-id'||netErr(e.type)){setNet('connecting');try{p.destroy()}catch(x){}clearTimeout(NET.retry);NET.retry=setTimeout(()=>{if(NET.code===code&&NET.role==='host')startHost();},3000);}});}
+function onHostMsg(c,m){const g=DBS.shared['games/'+NET.code];
+  if(m.t==='hello'){if(g&&g.guestId&&g.guestId!==m.uid&&g.hostId!==m.uid){c.send({t:'full'});setTimeout(()=>c.close(),500);return;}if(NET.conn&&NET.conn!==c)try{NET.conn.close()}catch(e){}NET.conn=c;c.uid=m.uid;setNet('connected');c.send({t:'state',docs:DBS.shared});return;}
+  if(m.t==='w'&&c===NET.conn&&typeof m.path==='string'&&!isPriv(m.path)&&(m.path==='games/'+NET.code||m.path.startsWith('games/'+NET.code+'/'))){applyW(DBS.shared,m.path,m.op,m.data);persist();notify();broadcast();}}
+function netJoin(code){netClose();NET.role='guest';NET.code=code;NET.synced=false;NET.pending=[];DBS.shared=lsJSON('om-store-'+code,{});startGuest();}
+function startGuest(){if(NET.role!=='guest')return;const code=NET.code;const p=new Peer({debug:0});NET.peer=p;setNet('connecting');
+  p.on('open',()=>{if(NET.peer===p)connectHost();});
+  p.on('disconnected',()=>{if(NET.peer===p&&!p.destroyed)try{p.reconnect()}catch(e){}});
+  p.on('error',e=>{if(NET.peer!==p)return;
+    if(e.type==='peer-unavailable'){NET.unavail++;setNet('lost');if(!DBS.shared['games/'+code]&&NET.unavail>=2){toast('部屋が見つかりません。コードと、相手がページを開いているかを確認してください');leave();return;}clearTimeout(NET.retry);NET.retry=setTimeout(()=>{if(NET.peer===p)connectHost();},3000);}
+    else if(netErr(e.type)){setNet('lost');try{p.destroy()}catch(x){}clearTimeout(NET.retry);NET.retry=setTimeout(()=>{if(NET.code===code&&NET.role==='guest')startGuest();},4000);}});}
+function connectHost(){if(NET.role!=='guest'||!NET.peer)return;const c=NET.peer.connect(PFX+NET.code,{reliable:true});NET.conn=c;
+  c.on('open',()=>{if(NET.conn!==c)return;NET.unavail=0;setNet('connected');c.send({t:'hello',uid:S.uid});for(const w of NET.pending.splice(0))c.send({t:'w',...w});});
+  c.on('data',m=>{if(NET.conn!==c)return;if(m.t==='state'){DBS.shared=m.docs||{};NET.synced=true;persist();notify();}else if(m.t==='full'){toast('この部屋はすでに2人そろっています');leave();}});
+  c.on('close',()=>{if(NET.conn===c&&NET.role==='guest'){NET.conn=null;setNet('lost');clearTimeout(NET.retry);NET.retry=setTimeout(connectHost,3000);}});}
+
+// ---- boot ----
+function boot(){let uid=lsGet('om-uid');if(!uid){uid='u'+Math.random().toString(36).slice(2,12)+Date.now().toString(36);lsSet('om-uid',uid);}
+  S.uid=uid;S.db=LDB;S.noDb=typeof window.Peer!=='function';S.screen='lobby';loadRooms();
+  const m=/^#room-([A-Z0-9]{5})$/.exec(location.hash);
+  if(m&&!S.noDb){if(lsJSON('om-store-'+m[1],null)?.['games/'+m[1]])openRoom(m[1]);else{S.prefill=m[1];render();setTimeout(()=>$('#nick')?.focus(),50);}}else render();}
+boot();
+}
+</script>
+</body>
+</html>
