@@ -117,6 +117,8 @@ header h1{font-size:16px;margin:0}
 .m.check .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .chk{display:inline-flex;align-items:center;gap:6px;font-size:14px;cursor:pointer}
 .chk input{width:18px;height:18px;min-height:0;margin:0}
+.m.check .extra{display:grid;grid-template-columns:auto 64px minmax(0,1fr);gap:6px;align-items:center;font-size:13px;color:var(--mute)}
+.m.check .extra input{min-height:32px;padding:3px 7px;font-size:14px}
 
 /* 右側 */
 #right{padding:0 12px 16px}
@@ -435,11 +437,22 @@ function checkEl(m,d){
   if(m.done){b.append(el('div','small','振りました（結果はすぐ下のダイスの行）'))}
   else if(m.expired){b.append(el('div','small','GMが次へ進んだため、この判定は締め切られました'))}
   else if(m.to===cid){
+    const ex=el('div','extra');const ev=el('input');ev.type='number';ev.inputMode='numeric';ev.min='-10';ev.max='10';ev.placeholder='0';ev.setAttribute('aria-label','その他の修正の値');
+    const ew=el('input');ew.maxLength=20;ew.placeholder='理由（例：協力・早瀬）';ew.setAttribute('aria-label','その他の修正の理由');
+    ex.append(el('span',null,'その他の修正'),ev,ew);b.append(ex);
+    const err=el('div','err');err.style.minHeight='0';
+    [ev,ew].forEach(i=>i.addEventListener('input',()=>err.textContent=''));
     const row=el('div','row');let hb=null;
     if(hiraLeft(cid)>0){const lb=el('label','chk');hb=el('input');hb.type='checkbox';lb.append(hb,document.createTextNode('ひらめきを使う（＋2）'));row.append(lb)}
     const go=el('button','primary','振る');go.type='button';
-    go.onclick=()=>{go.disabled=true;go.textContent='振っています…';requestRoll(m.q,m.id,hb&&hb.checked);setTimeout(()=>{if(!m.done){go.disabled=false;go.textContent='振る'}},5000)};
-    row.append(go);b.append(row);
+    go.onclick=()=>{
+      const v=ev.value.trim()===''?0:parseInt(ev.value,10);
+      if(!Number.isFinite(v)||Math.abs(v)>10){err.textContent='その他の修正は −10〜＋10 の数字で入れてください';return}
+      if(v&&!ew.value.trim()){err.textContent='その他の修正には理由を書いてください（GMが確かめます）';return}
+      err.textContent='';go.disabled=true;go.textContent='振っています…';
+      requestRoll(m.q,m.id,hb&&hb.checked,v?{v,why:ew.value.trim()}:null);
+      setTimeout(()=>{if(!m.done){go.disabled=false;go.textContent='振る'}},5000)};
+    row.append(go);b.append(row,err);
   }else b.append(el('div','small','このPLが振るのを待っています'));
   d.append(b);return d;
 }
@@ -632,7 +645,7 @@ $('diceForm').addEventListener('submit',e=>{
   $('diceErr').textContent='';requestRoll(q,null,$('dHira').checked);$('dHira').checked=false;
 });
 ['dExpr','dMod','dTgt'].forEach(i=>$(i).addEventListener('input',()=>$('diceErr').textContent=''));
-function requestRoll(q,check,hira){const d={type:'roll',q,check:check||null,hira:!!hira};if(role==='host')hostAccept(cid,d);else sendToHost(d)}
+function requestRoll(q,check,hira,extra){const d={type:'roll',q,check:check||null,hira:!!hira,extra:extra||null};if(role==='host')hostAccept(cid,d);else sendToHost(d)}
 function showMyRoll(m){if(m.kind==='dice'&&m.cid===cid){const r=m.dice;$('diceRes').textContent=r.rolls.join('＋')+(r.mod?(r.mod>0?'＋':'−')+Math.abs(r.mod):'')+'＝'+r.total}}
 
 /* ===== 送信 ===== */
@@ -728,6 +741,8 @@ function hostAccept(from,d){
     if(d.hira){const s=sheets[from];const h=s&&s.status.find(x=>norm(x.l)==='ひらめき');
       if(h&&h.c>0){const b=h.c;h.c-=1;q.mod+=2;q.label=(q.label?q.label:'')+'（ひらめき＋2）';saveRoom();sendAll({type:'sheets',sheets});renderSheets();
         hostPush({kind:'gsys',text:(s.pc||p.name)+' の ひらめき：'+b+' → '+h.c})}}
+    if(chk&&d.extra&&typeof d.extra==='object'){const v=Math.trunc(+d.extra.v);const why=String(d.extra.why||'').trim().slice(0,20);
+      if(v&&Math.abs(v)<=10&&why){q.mod+=v;q.label=(q.label?q.label:'')+'（'+why+(v>0?'＋':'−')+Math.abs(v)+'）'}}
     if(chk){chk.done=true;hostUpd(chk)}
     hostPush({kind:'dice',cid:from,name:p.name,pc:pcName(from),dice:rollDice(q),check:chk?chk.id:null});
   }
