@@ -118,7 +118,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 .card .top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .card .pc{font-weight:700;font-size:15px}
 .card .pl{font-size:12px;color:var(--mute)}
-.card .top button{margin-left:auto}
+.card .top button:first-of-type{margin-left:auto}
 .st{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px;align-items:center;font-size:13px;margin-top:5px}
 .st .v{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .st .v.low{color:var(--ng)}
@@ -484,6 +484,8 @@ function renderSheets(){
     const s=sheets[c];const card=el('div','card'+(c===cid?' mine':''));
     const top=el('div','top');top.append(el('span','pc',s.pc||'（名前未設定）'),el('span','pl',memberName(c)));
     if(canEdit(c)){const b=el('button','small-btn',editTarget===c?'編集中':'編集');b.type='button';b.disabled=editTarget===c;b.onclick=()=>openEditor(c);top.append(b)}
+    if(role==='host'){const del=el('button','small-btn','削除');del.type='button';del.setAttribute('aria-label',(s.pc||'名前未設定')+' のシートを削除');
+      del.onclick=()=>{if(del.dataset.armed!=='1'){del.dataset.armed='1';del.textContent='本当に削除';setTimeout(()=>{del.dataset.armed='';del.textContent='削除'},4000);return}hostDeleteSheet(c)};top.append(del)}
     card.append(top);
     s.status.forEach(x=>{
       const r=el('div','st');const low=x.m?(x.m>=3?x.c<=Math.floor(x.m/3):x.c<=0):false;
@@ -684,6 +686,12 @@ function hostSetSheet(target,s){
   s=cleanSheet(s);if(!s)return;sheets[target]=s;saveRoom();
   conns.forEach(ent=>safeSend(ent.conn,{type:'sheets',sheets}));
   renderSheets();renderMembers();buildTo();
+}
+function hostDeleteSheet(target){
+  if(!sheets[target])return;const name=sheets[target].pc||memberName(target);
+  delete sheets[target];clearTimeout(sheetTimers[target]);if(editTarget===target){editTarget=null;$('editorWrap').textContent=''}
+  saveRoom();sendAll({type:'sheets',sheets});renderSheets();renderMembers();buildTo();
+  hostPush({kind:'sys',text:'ホストが '+name+' のシートを削除しました'});
 }
 function hostPush(m){
   m.id=uid();m.t=Date.now();log.push(m);if(log.length>3000)log=log.slice(-3000);
@@ -906,7 +914,7 @@ function connectHost(){
         renderAll();status('卓に接続しました');$('gmBusy').classList.toggle('hidden',!d.busy);return;
       case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m)}return;
       case'members':if(Array.isArray(d.members)){members=d.members;renderMembers();renderSheets();buildTo()}return;
-      case'sheets':if(d.sheets){sheets={};for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}renderSheets();renderMembers();buildTo()}return;
+      case'sheets':if(d.sheets){sheets={};for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}if(!sheets[cid])clearTimeout(sheetTimers[cid]);renderSheets();renderMembers();buildTo()}return;
       case'clues':if(Array.isArray(d.clues)){clues=d.clues;renderClues()}return;
       case'progress':progress=String(d.text||'');renderProgress();return;
       case'scene':scene=d.scene&&safeImg(d.scene.data)?d.scene:null;renderScene();return;
