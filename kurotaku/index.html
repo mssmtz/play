@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>クロ卓 — オンラインセッション（試作1）</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{color-scheme:light dark;
+--bg:light-dark(#f1f2ee,#14171a);--paper:light-dark(#ffffff,#1d2226);--ink:light-dark(#1b1f22,#e7e9e6);
+--mute:light-dark(#5d666b,#9aa3a7);--line:light-dark(#d5d9d4,#30373c);--accent:light-dark(#9b3b25,#ef8a6c);
+--gm:light-dark(#f6efe3,#2a2620);--gmline:light-dark(#c9a56a,#8a7046);--sys:light-dark(#6b7378,#8d969b);
+--ok:light-dark(#1f6b45,#74d1a0);--okbg:light-dark(#e1f2e8,#173226);--ng:light-dark(#a3261f,#ff7f73);--ngbg:light-dark(#fbe6e3,#3a1c1a)}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 "Hiragino Sans","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{min-height:40px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:var(--paper);cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+input,select,textarea{width:100%;min-height:40px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+label{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}
+.hidden{display:none!important}
+
+/* 入室画面 */
+#lobby{min-height:100%;display:grid;place-items:center;padding:24px}
+.lobbyCard{width:min(440px,100%);background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px}
+.lobbyCard h1{margin:0 0 4px;font-size:24px}
+.lobbyCard p{margin:0 0 18px;color:var(--mute);font-size:13px}
+.f{margin-bottom:12px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.err{color:var(--ng);font-size:13px;min-height:20px;margin:4px 0}
+
+/* 卓画面 */
+#table{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;background:var(--paper);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0}
+.code{font-family:ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:14px}
+.status{font-size:13px;color:var(--mute)}
+.status.bad{color:var(--ng)}
+.spacer{flex:1}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:0}
+.main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0}
+#log{overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
+.m{max-width:760px}
+.m .who{font-size:12px;color:var(--mute);display:flex;gap:8px}
+.m .body{white-space:pre-wrap;word-break:break-word}
+.m.say .body{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:7px 12px;display:inline-block}
+.m.me .body{border-color:var(--accent)}
+.m.gm .body{background:var(--gm);border-left:3px solid var(--gmline);padding:9px 14px;border-radius:0 10px 10px 0}
+.m.gm .who{color:var(--gmline);font-weight:600}
+.m.sys{color:var(--sys);font-size:13px;text-align:center;max-width:none}
+.m.dice .body{background:var(--paper);border:1px dashed var(--line);border-radius:10px;padding:7px 12px;display:inline-flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.dsum{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.tag{font-size:12px;padding:1px 8px;border-radius:5px;font-weight:600}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.ng{background:var(--ngbg);color:var(--ng)}
+.composer{border-top:1px solid var(--line);background:var(--paper);padding:10px 14px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:end}
+.composer select{width:auto;min-width:110px}
+.composer textarea{min-height:40px;max-height:160px;resize:vertical}
+.hint{grid-column:1/-1;font-size:12px;color:var(--mute);margin:0}
+aside{border-left:1px solid var(--line);background:var(--paper);overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:18px}
+aside h2{font-size:14px;margin:0 0 8px}
+.members{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.members li{display:flex;align-items:center;gap:8px;font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:none}
+.dot.off{background:var(--line)}
+.role{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.diceRes{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;min-height:42px}
+.small{font-size:12px;color:var(--mute);margin:0}
+.tools{display:flex;flex-wrap:wrap;gap:6px}
+@media(max-width:760px){
+ .layout{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+ aside{border-left:0;border-top:1px solid var(--line);max-height:40vh}
+ .composer{grid-template-columns:minmax(0,1fr) auto}
+ .composer select{grid-column:1/-1;width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- 入室画面 -->
+<section id="lobby">
+  <form class="lobbyCard" id="lobbyForm" autocomplete="off">
+    <h1>クロ卓</h1>
+    <p>オンラインセッション用の卓（試作1：チャットとダイスの同期）</p>
+    <div class="f">
+      <label>参加のしかた</label>
+      <div class="seg" role="group" aria-label="参加のしかた">
+        <button type="button" id="asHost" aria-pressed="false">卓を立てる（ホスト）</button>
+        <button type="button" id="asGuest" aria-pressed="true">卓に入る（PL）</button>
+      </div>
+    </div>
+    <div class="f"><label for="inName">表示名</label><input id="inName" maxlength="20" placeholder="例：沢渡（けんじ）"></div>
+    <div class="f"><label for="inCode">部屋コード（英数字4〜16文字）</label><input id="inCode" maxlength="16" placeholder="例：nanago7" autocapitalize="off" spellcheck="false"></div>
+    <div class="err" id="lobbyErr" role="alert"></div>
+    <button class="primary" type="submit" id="enterBtn" style="width:100%">入室する</button>
+    <p class="small" style="margin-top:14px">ホストのブラウザが卓の中心になります。ホストがページを閉じると、全員の接続が切れます（ログはホストのブラウザに残ります）。</p>
+  </form>
+</section>
+
+<!-- 卓画面 -->
+<section id="table" class="hidden">
+  <header>
+    <h1>クロ卓</h1>
+    <span>部屋 <span class="code" id="hdrCode"></span></span>
+    <span class="status" id="hdrStatus">接続中…</span>
+    <span class="spacer"></span>
+    <button type="button" id="leaveBtn">退室</button>
+  </header>
+  <div class="layout">
+    <div class="main">
+      <div id="log" aria-live="polite"></div>
+      <form class="composer" id="sayForm">
+        <select id="sayAs" aria-label="発言の種類"></select>
+        <textarea id="sayText" rows="1" maxlength="4000" placeholder="行動や発言を入力（Enterで送信、Shift+Enterで改行）"></textarea>
+        <button class="primary" type="submit">送信</button>
+        <p class="hint">「2d6+3>=10 観察」のように打つとダイスを振れます。</p>
+      </form>
+    </div>
+    <aside>
+      <section>
+        <h2>参加者</h2>
+        <ul class="members" id="members"></ul>
+      </section>
+      <section>
+        <h2>ダイス</h2>
+        <form id="diceForm" style="display:grid;gap:8px">
+          <div class="grid2">
+            <div><label for="dExpr">ダイス</label><input id="dExpr" value="2D6" maxlength="10"></div>
+            <div><label for="dMod">修正</label><input id="dMod" type="number" inputmode="numeric" value="0" min="-50" max="50"></div>
+          </div>
+          <div class="grid2">
+            <div><label for="dTgt">目標値</label><input id="dTgt" type="number" inputmode="numeric" placeholder="なし" min="1" max="999"></div>
+            <div><label for="dLabel">何の判定か</label><input id="dLabel" maxlength="30" placeholder="例：知＋観察"></div>
+          </div>
+          <div class="err" id="diceErr"></div>
+          <button class="primary" type="submit">振る</button>
+          <div class="diceRes" id="diceRes" aria-live="polite">—</div>
+          <p class="small">ダイスはホストのブラウザで振られ、全員に同じ結果が届きます。</p>
+        </form>
+      </section>
+      <section id="hostTools" class="hidden">
+        <h2>ホスト用</h2>
+        <div class="tools">
+          <button type="button" id="exportBtn">ログを保存</button>
+          <button type="button" id="resetBtn">ログを消す</button>
+        </div>
+        <p class="small" style="margin-top:6px">「GMとして」発言すると、GMの描写として表示されます（試作2でクロコードに置き換える部分）。</p>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const PREFIX='kurotaku-';
+const MAX_GUESTS=6;
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const uid=()=>{const a=new Uint32Array(2);crypto.getRandomValues(a);return a[0].toString(36)+a[1].toString(36)};
+const cid=store.get('kurotaku.cid')||(()=>{const v=uid();store.set('kurotaku.cid',v);return v})();
+
+let role='guest';          // 'host' | 'guest'
+let me={name:'',cid};
+let code='';
+let peer=null,alive=false;
+let log=[];                // 共有ログ
+let members=[];            // {cid,name,role,online}
+// ホスト側
+const conns=new Map();     // cid -> {conn,lastSeen}
+let pingT=null;
+// ゲスト側
+let hostConn=null,retryT=null;
+
+/* ---------- 入室画面 ---------- */
+const saved=store.get('kurotaku.lobby')||{};
+$('inName').value=saved.name||'';$('inCode').value=saved.code||'';
+setRole(saved.role==='host'?'host':'guest');
+function setRole(r){role=r;$('asHost').setAttribute('aria-pressed',r==='host');$('asGuest').setAttribute('aria-pressed',r==='guest');$('enterBtn').textContent=r==='host'?'卓を立てる':'入室する'}
+$('asHost').onclick=()=>setRole('host');$('asGuest').onclick=()=>setRole('guest');
+['inName','inCode'].forEach(i=>$(i).addEventListener('input',()=>$('lobbyErr').textContent=''));
+$('lobbyForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const name=$('inName').value.trim(),c=$('inCode').value.trim().toLowerCase();
+  if(!name){$('lobbyErr').textContent='表示名を入れてください';return}
+  if(!/^[a-z0-9]{4,16}$/.test(c)){$('lobbyErr').textContent='部屋コードは英数字4〜16文字にしてください';return}
+  const P=window.Peer||(window.peerjs&&window.peerjs.Peer);
+  if(!P){$('lobbyErr').textContent='通信ライブラリを読み込めませんでした。インターネットにつながった状態で開き直してください。';return}
+  me.name=name;code=c;store.set('kurotaku.lobby',{name,code:c,role});
+  enterTable();
+  role==='host'?startHost():startGuest();
+});
+
+function enterTable(){
+  $('lobby').classList.add('hidden');$('table').classList.remove('hidden');
+  $('hdrCode').textContent=code;
+  $('hostTools').classList.toggle('hidden',role!=='host');
+  const opts=[['say',me.name+'として']];if(role==='host')opts.push(['gm','GMとして']);
+  $('sayAs').innerHTML='';opts.forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;$('sayAs').append(o)});
+  $('sayAs').classList.toggle('hidden',opts.length<2);
+  $('sayText').focus();
+}
+function status(t,bad){$('hdrStatus').textContent=t;$('hdrStatus').classList.toggle('bad',!!bad)}
+
+/* ---------- 描画 ---------- */
+function renderLog(){
+  const box=$('log');const atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
+  box.textContent='';
+  if(!log.length){const d=document.createElement('div');d.className='m sys';d.textContent='まだ発言はありません。';box.append(d)}
+  log.forEach(m=>box.append(msgEl(m)));
+  if(atBottom||log.length&&log[log.length-1].cid===cid)box.scrollTop=box.scrollHeight;
+}
+function appendLog(m){
+  const box=$('log');const atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
+  if(log.length===1)box.textContent='';
+  box.append(msgEl(m));
+  if(atBottom||m.cid===cid)box.scrollTop=box.scrollHeight;
+}
+function hhmm(t){const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
+function msgEl(m){
+  const d=document.createElement('div');d.className='m '+m.kind+(m.cid===cid?' me':'');
+  if(m.kind==='sys'){d.textContent=m.text;return d}
+  const who=document.createElement('div');who.className='who';
+  const n=document.createElement('span');n.textContent=m.kind==='gm'?'GM':m.name;
+  const t=document.createElement('time');t.textContent=hhmm(m.t);
+  who.append(n,t);d.append(who);
+  const b=document.createElement('div');b.className='body';
+  if(m.kind==='dice'){
+    const r=m.dice;
+    const lab=document.createElement('span');lab.textContent=(r.label?r.label+'　':'')+r.n+'D'+r.s+(r.mod?(r.mod>0?'+':'')+r.mod:'')+(r.tgt!=null?' 目標'+r.tgt:'');
+    const rolls=document.createElement('span');rolls.textContent='['+r.rolls.join(',')+']';
+    const sum=document.createElement('span');sum.className='dsum';sum.textContent='＝'+r.total;
+    b.append(lab,rolls,sum);
+    const tag=resultTag(r);if(tag)b.append(tag);
+  }else b.textContent=m.text;
+  d.append(b);return d;
+}
+function resultTag(r){
+  const map={crit:['6ゾロ・成功','ok'],fumble:['1ゾロ・失敗','ng'],ok:['成功','ok'],ng:['失敗','ng']};
+  if(!r.res||!map[r.res])return null;
+  const s=document.createElement('span');s.className='tag '+map[r.res][1];s.textContent=map[r.res][0];return s;
+}
+function renderMembers(){
+  const ul=$('members');ul.textContent='';
+  members.forEach(p=>{
+    const li=document.createElement('li');
+    const dot=document.createElement('span');dot.className='dot'+(p.online?'':' off');
+    const n=document.createElement('span');n.textContent=p.name+(p.cid===cid?'（あなた）':'');
+    li.append(dot,n);
+    if(p.role==='host'){const r=document.createElement('span');r.className='role';r.textContent='ホスト';li.append(r)}
+    ul.append(li);
+  });
+}
+
+/* ---------- ダイス ---------- */
+function parseDice(text){
+  // 例: 2d6+3>=10 観察 / 2D6 / 1d100<=70 目星（<=は以下で成功）
+  const m=text.trim().match(/^(\d{1,2})[dD](\d{1,3})\s*([+-]\s*\d{1,3})?\s*(>=|<=)?\s*(\d{1,3})?\s*(.*)$/);
+  if(!m)return null;
+  const n=+m[1],s=+m[2];if(n<1||n>20||s<2||s>100)return null;
+  if(m[4]&&!m[5])return null;
+  return{n,s,mod:m[3]?parseInt(m[3].replace(/\s/g,'')):0,cmp:m[4]||(m[5]?'>=':null),tgt:m[5]!=null&&m[5]!==''?+m[5]:null,label:(m[6]||'').trim().slice(0,30)};
+}
+function rollDice(q){
+  const a=new Uint32Array(q.n);crypto.getRandomValues(a);
+  const rolls=[...a].map(x=>x%q.s+1);const raw=rolls.reduce((p,c)=>p+c,0);const total=raw+q.mod;
+  let res='';
+  const is2d6=q.n===2&&q.s===6;
+  if(is2d6&&raw===12)res='crit';else if(is2d6&&raw===2)res='fumble';
+  else if(q.tgt!=null)res=(q.cmp==='<='?total<=q.tgt:total>=q.tgt)?'ok':'ng';
+  return{n:q.n,s:q.s,mod:q.mod,tgt:q.tgt,cmp:q.cmp,label:q.label,rolls,total,res};
+}
+function cleanRollReq(q){
+  if(!q||typeof q!=='object')return null;
+  const n=Math.trunc(+q.n),s=Math.trunc(+q.s),mod=Math.trunc(+q.mod)||0;
+  if(!(n>=1&&n<=20&&s>=2&&s<=100&&Math.abs(mod)<=50))return null;
+  const tgt=q.tgt==null||q.tgt===''?null:Math.trunc(+q.tgt);
+  if(tgt!=null&&!(tgt>=1&&tgt<=999))return null;
+  return{n,s,mod,tgt,cmp:q.cmp==='<='?'<=':(tgt!=null?'>=':null),label:String(q.label||'').slice(0,30)};
+}
+$('diceForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const em=$('dExpr').value.trim().match(/^(\d{1,2})[dD](\d{1,3})$/);
+  if(!em){$('diceErr').textContent='ダイスは「2D6」の形で入れてください';return}
+  const mod=parseInt($('dMod').value||'0');if(Number.isNaN(mod)){$('diceErr').textContent='修正は数字で入れてください';return}
+  const tv=$('dTgt').value.trim();const tgt=tv===''?null:parseInt(tv);
+  if(tv!==''&&Number.isNaN(tgt)){$('diceErr').textContent='目標値は数字で入れてください';return}
+  const q=cleanRollReq({n:+em[1],s:+em[2],mod,tgt,label:$('dLabel').value.trim()});
+  if(!q){$('diceErr').textContent='ダイスの数か面の数が範囲外です（1〜20個、2〜100面）';return}
+  $('diceErr').textContent='';requestRoll(q);
+});
+['dExpr','dMod','dTgt'].forEach(i=>$(i).addEventListener('input',()=>$('diceErr').textContent=''));
+
+/* ---------- 送信 ---------- */
+$('sayText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('sayForm').requestSubmit()}});
+$('sayForm').addEventListener('submit',e=>{
+  e.preventDefault();const text=$('sayText').value.trim();if(!text)return;
+  const asGM=$('sayAs').value==='gm';
+  const q=!asGM&&parseDice(text);
+  if(q){const c=cleanRollReq(q);if(c){requestRoll(c);$('sayText').value='';return}}
+  if(role==='host')hostAccept(cid,asGM?{type:'gm',text}:{type:'say',text});
+  else if(!sendToHost({type:'say',text}))return;
+  $('sayText').value='';
+});
+function requestRoll(q){
+  if(role==='host')hostAccept(cid,{type:'roll',q});
+  else if(!sendToHost({type:'roll',q}))return;
+}
+function showMyRoll(m){if(m.kind==='dice'&&m.cid===cid){$('diceRes').textContent=m.dice.rolls.join('＋')+(m.dice.mod?(m.dice.mod>0?'＋':'−')+Math.abs(m.dice.mod):'')+'＝'+m.dice.total}}
+
+/* ---------- ホスト ---------- */
+function startHost(){
+  const savedRoom=store.get('kurotaku.room.'+code);
+  log=savedRoom&&Array.isArray(savedRoom.log)?savedRoom.log:[];
+  members=[{cid,name:me.name,role:'host',online:true}];
+  renderLog();renderMembers();
+  alive=true;openHostPeer(0);
+}
+function openHostPeer(tries){
+  status('卓を立てています…');
+  const P=window.Peer||window.peerjs.Peer;
+  peer=new P(PREFIX+code,{debug:0});
+  peer.on('open',()=>{status('卓を立てました。PLは部屋コード「'+code+'」で入れます');
+    if(!log.some(m=>m.kind==='sys'))hostPush({kind:'sys',text:'卓が開かれました'});
+    clearInterval(pingT);pingT=setInterval(hostTick,4000);});
+  peer.on('connection',c=>hostBind(c));
+  peer.on('disconnected',()=>{if(alive){status('仲介サーバーとの接続が切れました。再接続しています…',true);setTimeout(()=>{try{alive&&peer.reconnect()}catch(e){}},2000)}});
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id'){
+      try{peer.destroy()}catch(x){}
+      if(tries<4){status('同じ部屋コードの卓が開いていないか確認しています…');setTimeout(()=>alive&&openHostPeer(tries+1),3000);return}
+      status('この部屋コードはすでに使われています。退室して別のコードにしてください',true);return;
+    }
+    if(e.type==='network'||e.type==='server-error'||e.type==='socket-error'){status('仲介サーバーにつながりません（'+e.type+'）',true);return}
+    if(e.type==='browser-incompatible'){status('このブラウザはWebRTCに対応していません',true);return}
+    console.warn('peer error',e.type);
+  });
+}
+function hostBind(c){
+  let who=null;
+  c.on('data',d=>{
+    if(!d||typeof d!=='object')return;
+    if(d.type==='hello'){
+      const name=String(d.name||'').trim().slice(0,20)||'名無し';const ccid=String(d.cid||'').slice(0,40);
+      if(!ccid||ccid===cid){safeSend(c,{type:'reject',reason:'接続できませんでした'});return}
+      const known=members.find(p=>p.cid===ccid);
+      if(!known&&members.filter(p=>p.role!=='host').length>=MAX_GUESTS){safeSend(c,{type:'reject',reason:'満員です（最大'+MAX_GUESTS+'人）'});setTimeout(()=>{try{c.close()}catch(x){}},500);return}
+      const old=conns.get(ccid);if(old&&old.conn!==c){try{old.conn.close()}catch(x){}}
+      who=ccid;conns.set(ccid,{conn:c,lastSeen:Date.now()});
+      if(known){const rename=known.name!==name;known.online=true;known.name=name;if(!known.wasOn||rename)hostPush({kind:'sys',text:name+' さんが'+(known.joinedOnce?'戻りました':'入室しました')})}
+      else{members.push({cid:ccid,name,role:'pl',online:true});hostPush({kind:'sys',text:name+' さんが入室しました'})}
+      const p=members.find(x=>x.cid===ccid);p.joinedOnce=true;p.wasOn=true;
+      safeSend(c,{type:'welcome',log,members:pubMembers()});
+      broadcastMembers();return;
+    }
+    if(!who)return;
+    const ent=conns.get(who);if(ent&&ent.conn===c)ent.lastSeen=Date.now();
+    if(d.type==='pong')return;
+    hostAccept(who,d);
+  });
+  c.on('close',()=>{if(!who)return;const ent=conns.get(who);if(ent&&ent.conn===c){conns.delete(who);markOffline(who)}});
+  c.on('error',()=>{});
+}
+function markOffline(ccid){const p=members.find(x=>x.cid===ccid);if(p&&p.online){p.online=false;p.wasOn=false;hostPush({kind:'sys',text:p.name+' さんの接続が切れました'});broadcastMembers()}}
+function hostTick(){
+  const now=Date.now();
+  conns.forEach((ent,k)=>{if(now-ent.lastSeen>15000){try{ent.conn.close()}catch(e){}conns.delete(k);markOffline(k)}else safeSend(ent.conn,{type:'ping'})});
+}
+const rate=new Map();
+function hostAccept(from,d){
+  const p=members.find(x=>x.cid===from);if(!p)return;
+  // 連投の上限（1人あたり 10件/5秒）
+  const now=Date.now();const r=(rate.get(from)||[]).filter(t=>now-t<5000);if(r.length>=10)return;r.push(now);rate.set(from,r);
+  if(d.type==='say'){const text=String(d.text||'').trim().slice(0,4000);if(text)hostPush({kind:'say',cid:from,name:p.name,text})}
+  else if(d.type==='gm'&&from===cid){const text=String(d.text||'').trim().slice(0,8000);if(text)hostPush({kind:'gm',cid:from,name:'GM',text})}
+  else if(d.type==='roll'){const q=cleanRollReq(d.q);if(q)hostPush({kind:'dice',cid:from,name:p.name,dice:rollDice(q)})}
+}
+function hostPush(m){
+  m.id=uid();m.t=Date.now();log.push(m);if(log.length>2000)log=log.slice(-2000);
+  store.set('kurotaku.room.'+code,{log});
+  log.length===1?renderLog():appendLog(m);showMyRoll(m);
+  conns.forEach(ent=>safeSend(ent.conn,{type:'msg',m}));
+}
+function pubMembers(){return members.map(({cid,name,role,online})=>({cid,name,role,online}))}
+function broadcastMembers(){renderMembers();const pm=pubMembers();conns.forEach(ent=>safeSend(ent.conn,{type:'members',members:pm}))}
+function safeSend(c,obj){try{if(c&&c.open){c.send(obj);return true}}catch(e){}return false}
+$('exportBtn').onclick=()=>{
+  const lines=log.map(m=>{const t=new Date(m.t).toLocaleString('ja-JP');
+    if(m.kind==='sys')return '['+t+'] ― '+m.text;
+    if(m.kind==='dice'){const r=m.dice;return '['+t+'] '+m.name+'：'+(r.label?r.label+' ':'')+r.n+'D'+r.s+(r.mod?(r.mod>0?'+':'')+r.mod:'')+(r.tgt!=null?' 目標'+r.tgt:'')+' → ['+r.rolls.join(',')+'] ＝ '+r.total+(r.res?' '+{crit:'6ゾロ・成功',fumble:'1ゾロ・失敗',ok:'成功',ng:'失敗'}[r.res]:'')}
+    return '['+t+'] '+(m.kind==='gm'?'GM':m.name)+'：'+m.text});
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='kurotaku_'+code+'_'+new Date().toISOString().slice(0,10)+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+$('resetBtn').onclick=e=>{
+  const b=e.currentTarget;
+  if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='本当に消す';setTimeout(()=>{b.dataset.armed='';b.textContent='ログを消す'},4000);return}
+  b.dataset.armed='';b.textContent='ログを消す';
+  log=[];store.del('kurotaku.room.'+code);renderLog();
+  conns.forEach(ent=>safeSend(ent.conn,{type:'welcome',log,members:pubMembers()}));
+  hostPush({kind:'sys',text:'ログが消去されました'});
+};
+
+/* ---------- ゲスト ---------- */
+function startGuest(){
+  log=[];members=[];renderLog();renderMembers();
+  alive=true;status('仲介サーバーに接続しています…');
+  const P=window.Peer||window.peerjs.Peer;
+  peer=new P({debug:0});
+  peer.on('open',()=>connectHost());
+  peer.on('disconnected',()=>{if(alive){setTimeout(()=>{try{alive&&peer.reconnect()}catch(e){}},2000)}});
+  peer.on('error',e=>{
+    if(e.type==='peer-unavailable'){status('卓が見つかりません。ホストが卓を立てるのを待っています…',true);retryLater();return}
+    if(e.type==='network'||e.type==='server-error'||e.type==='socket-error'){status('仲介サーバーにつながりません（'+e.type+'）。再試行します…',true);retryLater();return}
+    if(e.type==='browser-incompatible'){status('このブラウザはWebRTCに対応していません',true);return}
+    console.warn('peer error',e.type);retryLater();
+  });
+}
+function retryLater(){clearTimeout(retryT);if(alive)retryT=setTimeout(connectHost,3000)}
+function connectHost(){
+  if(!alive||!peer||peer.destroyed)return;
+  if(peer.disconnected){try{peer.reconnect()}catch(e){}retryLater();return}
+  if(hostConn&&hostConn.open)return;
+  status('卓に接続しています…');
+  const c=peer.connect(PREFIX+code,{reliable:true});hostConn=c;
+  let lastPing=Date.now();
+  const watch=setInterval(()=>{if(hostConn!==c){clearInterval(watch);return}if(c.open&&Date.now()-lastPing>15000){try{c.close()}catch(e){}}},4000);
+  const openT=setTimeout(()=>{if(hostConn===c&&!c.open){try{c.close()}catch(e){}hostConn=null;retryLater()}},10000);
+  c.on('open',()=>{clearTimeout(openT);safeSend(c,{type:'hello',name:me.name,cid})});
+  c.on('data',d=>{
+    if(!d||typeof d!=='object'||hostConn!==c)return;
+    lastPing=Date.now();
+    if(d.type==='ping'){safeSend(c,{type:'pong'});return}
+    if(d.type==='reject'){alive=false;status(String(d.reason||'入室できませんでした'),true);return}
+    if(d.type==='welcome'){log=Array.isArray(d.log)?d.log:[];members=Array.isArray(d.members)?d.members:[];renderLog();renderMembers();status('卓に接続しました');return}
+    if(d.type==='msg'&&d.m){log.push(d.m);log.length===1?renderLog():appendLog(d.m);showMyRoll(d.m);return}
+    if(d.type==='members'&&Array.isArray(d.members)){members=d.members;renderMembers();return}
+  });
+  c.on('close',()=>{clearInterval(watch);clearTimeout(openT);if(hostConn===c){hostConn=null;if(alive){status('卓との接続が切れました。再接続しています…',true);retryLater()}}});
+  c.on('error',()=>{});
+}
+function sendToHost(obj){
+  if(safeSend(hostConn,obj))return true;
+  status('卓に接続されていないため送れませんでした。再接続を待ってください',true);return false;
+}
+
+/* ---------- 退室 ---------- */
+$('leaveBtn').onclick=()=>{
+  alive=false;clearInterval(pingT);clearTimeout(retryT);
+  try{peer&&peer.destroy()}catch(e){}
+  peer=null;hostConn=null;conns.clear();
+  $('table').classList.add('hidden');$('lobby').classList.remove('hidden');$('lobbyErr').textContent='';
+};
+window.addEventListener('beforeunload',e=>{if(role==='host'&&alive&&conns.size){e.preventDefault();e.returnValue=''}});
+})();
+</script>
+</body>
+</html>
