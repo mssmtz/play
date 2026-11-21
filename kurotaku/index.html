@@ -264,8 +264,21 @@ function msgEl(m){
     const sum=document.createElement('span');sum.className='dsum';sum.textContent='＝'+r.total;
     b.append(lab,rolls,sum);
     const tag=resultTag(r);if(tag)b.append(tag);
-  }else b.textContent=m.text;
+  }else if(m.kind==='gm')richText(b,m.text);
+  else b.textContent=m.text;
   d.append(b);return d;
+}
+// GMの文章の **太字** と行頭の「# 見出し」だけを、安全に（文字列として）表示する
+function richText(el,text){
+  String(text).split('\n').forEach((line,i)=>{
+    if(i)el.append(document.createElement('br'));
+    const h=line.match(/^#{1,4}\s+(.*)$/);if(h)line='**'+h[1].replace(/\*\*/g,'')+'**';
+    line.split(/(\*\*[^*\n]+?\*\*)/).forEach(part=>{
+      const s=part.match(/^\*\*([^*\n]+?)\*\*$/);
+      if(s){const st=document.createElement('strong');st.textContent=s[1];el.append(st)}
+      else if(part)el.append(document.createTextNode(part));
+    });
+  });
 }
 function resultTag(r){
   const map={crit:['6ゾロ・成功','ok'],fumble:['1ゾロ・失敗','ng'],ok:['成功','ok'],ng:['失敗','ng']};
