@@ -108,7 +108,7 @@ header h1{font-size:16px;margin:0}
 #right{padding:0 12px 16px}
 #right .tabs{position:sticky;top:0;background:var(--paper);z-index:1;padding-top:8px}
 .members{list-style:none;margin:0 0 4px;padding:0;display:grid;gap:3px}
-.members li{display:flex;align-items:center;gap:8px;font-size:14px}
+.members li{display:flex;align-items:center;gap:8px;font-size:14px;min-height:30px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:none}
 .dot.off{background:var(--line)}
 .role{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:0 5px}
@@ -279,6 +279,8 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
           <div id="gmHostMsg" class="hostMsg hidden"></div>
           <div id="gmWarn" class="warnMsg hidden"></div>
         </div>
+        <h3 class="sec">退室させた人</h3>
+        <div id="bannedList"><p class="small">いません</p></div>
         <h3 class="sec">卓の管理</h3>
         <div class="tools">
           <button type="button" id="exportBtn">ログを保存</button>
@@ -309,7 +311,7 @@ let role='guest',me={name:'',cid},code='',peer=null,alive=false;
 // 共有される状態（ホストが正本を持つ）
 let log=[],members=[],sheets={},clues=[],progress='',scene=null,board=[];
 // ホスト側
-const conns=new Map();let pingT=null;let gmCursor=null,notes=[],gmBusy=false;
+const conns=new Map();let pingT=null;let gmCursor=null,notes=[],gmBusy=false;let banned={};// cid -> 表示名
 // ゲスト側
 let hostConn=null,retryT=null;
 
@@ -428,6 +430,8 @@ function renderMembers(){
   members.forEach(p=>{
     const li=el('li');li.append(el('span','dot'+(p.online?'':' off')),el('span',null,p.name+(p.cid===cid?'（あなた）':'')+(pcName(p.cid)?'　PC：'+pcName(p.cid):'')));
     if(p.role==='host')li.append(el('span','role','ホスト'));
+    if(role==='host'&&p.cid!==cid){const k=el('button','small-btn','キック');k.type='button';k.style.marginLeft='auto';k.setAttribute('aria-label',p.name+' さんを退室させる');
+      k.onclick=()=>{if(k.dataset.armed!=='1'){k.dataset.armed='1';k.textContent='本当にキック';k.classList.add('primary');setTimeout(()=>{k.dataset.armed='';k.textContent='キック';k.classList.remove('primary')},4000);return}hostKick(p.cid)};li.append(k)}
     ul.append(li);
   });
 }
@@ -610,12 +614,12 @@ $('sayForm').addEventListener('submit',e=>{
 
 /* ===== ホスト ===== */
 function roomKey(){return'kurotaku.room.'+code}
-function saveRoom(){store.set(roomKey(),{log,sheets,clues,progress,scene:scene?{name:scene.name}:null,gmCursor,notes})}
+function saveRoom(){store.set(roomKey(),{log,sheets,clues,progress,scene:scene?{name:scene.name}:null,gmCursor,notes,banned})}
 function startHost(){
   const r=store.get(roomKey())||{};
   log=Array.isArray(r.log)?r.log:[];sheets={};if(r.sheets&&typeof r.sheets==='object')for(const k in r.sheets){const s=cleanSheet(r.sheets[k]);if(s)sheets[k]=s}
   clues=Array.isArray(r.clues)?r.clues:[];progress=typeof r.progress==='string'?r.progress:'';
-  gmCursor=typeof r.gmCursor==='string'?r.gmCursor:null;notes=Array.isArray(r.notes)?r.notes:[];
+  gmCursor=typeof r.gmCursor==='string'?r.gmCursor:null;notes=Array.isArray(r.notes)?r.notes:[];banned=r.banned&&typeof r.banned==='object'?r.banned:{};renderBanned();
   scene=null;board=[];pendingSceneName=r.scene&&r.scene.name||null;
   members=[{cid,name:me.name,role:'host',online:true}];
   const gs=store.get('kurotaku.gm')||{};if(gs.url)$('gmUrl').value=gs.url;if(gs.token)$('gmToken').value=gs.token;
@@ -650,6 +654,7 @@ function hostBind(c){
     if(d.type==='hello'){
       const name=String(d.name||'').trim().slice(0,20)||'名無し';const ccid=String(d.cid||'').slice(0,40);
       if(!ccid||ccid===cid||ccid==='GM'||ccid==='gm'){safeSend(c,{type:'reject',reason:'接続できませんでした'});return}
+      if(banned[ccid]){safeSend(c,{type:'reject',reason:'ホストに退室させられたため、この卓には入れません'});setTimeout(()=>{try{c.close()}catch(x){}},500);return}
       const known=members.find(p=>p.cid===ccid);
       if(!known&&members.filter(p=>p.role!=='host').length>=MAX_GUESTS){safeSend(c,{type:'reject',reason:'満員です（最大'+MAX_GUESTS+'人）'});setTimeout(()=>{try{c.close()}catch(x){}},500);return}
       const old=conns.get(ccid);if(old&&old.conn!==c){try{old.conn.close()}catch(x){}}
@@ -686,6 +691,20 @@ function hostSetSheet(target,s){
   s=cleanSheet(s);if(!s)return;sheets[target]=s;saveRoom();
   conns.forEach(ent=>safeSend(ent.conn,{type:'sheets',sheets}));
   renderSheets();renderMembers();buildTo();
+}
+function hostKick(k){
+  const p=members.find(x=>x.cid===k);if(!p||k===cid)return;
+  banned[k]=p.name;
+  const ent=conns.get(k);if(ent){safeSend(ent.conn,{type:'kicked'});setTimeout(()=>{try{ent.conn.close()}catch(e){}},400);conns.delete(k)}
+  members=members.filter(x=>x.cid!==k);saveRoom();renderBanned();
+  hostPush({kind:'sys',text:p.name+' さんをホストが退室させました'});broadcastMembers();
+}
+function renderBanned(){
+  const box=$('bannedList');box.textContent='';const ks=Object.keys(banned);
+  if(!ks.length){box.append(el('p','small','いません'));return}
+  ks.forEach(k=>{const r=el('div');r.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:4px';r.append(el('span',null,banned[k]));
+    const b=el('button','small-btn','入室を許可');b.type='button';b.style.marginLeft='auto';b.onclick=()=>{const n=banned[k];delete banned[k];saveRoom();renderBanned();hostPush({kind:'sys',text:'ホストが '+n+' さんの入室を許可しました'})};
+    r.append(b);box.append(r)});
 }
 function hostDeleteSheet(target){
   if(!sheets[target])return;const name=sheets[target].pc||memberName(target);
@@ -907,6 +926,7 @@ function connectHost(){
     switch(d.type){
       case'ping':safeSend(c,{type:'pong'});return;
       case'reject':alive=false;status(String(d.reason||'入室できませんでした'),true);return;
+      case'kicked':alive=false;hostConn=null;try{c.close()}catch(e){}status('ホストに退室させられました',true);return;
       case'welcome':
         log=Array.isArray(d.log)?d.log:[];members=Array.isArray(d.members)?d.members:[];
         sheets={};if(d.sheets)for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}
