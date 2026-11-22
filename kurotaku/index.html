@@ -225,6 +225,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
     <span class="status" id="hdrStatus">接続中…</span>
     <span class="status hidden" id="gmBusy" role="status">GMが考えています…</span>
     <span class="spacer"></span>
+    <button type="button" id="syncBtn" title="接続が切れていたり、画面が古いと感じたら押してください">同期し直す</button>
     <button type="button" id="leaveBtn">退室</button>
   </header>
   <div class="app">
@@ -373,6 +374,8 @@ const pcName=c=>sheets[c]&&sheets[c].pc?sheets[c].pc:'';
 const whoLabel=c=>pcName(c)||memberName(c);
 
 /* ===== 入室 ===== */
+// 入室中かどうかをタブに覚えておき、ブラウザで更新しても同じ部屋に入り直す
+const sess={get(){try{return JSON.parse(sessionStorage.getItem('kurotaku.session'))}catch(e){return null}},set(v){try{sessionStorage.setItem('kurotaku.session',JSON.stringify(v))}catch(e){}},del(){try{sessionStorage.removeItem('kurotaku.session')}catch(e){}}};
 const saved=store.get('kurotaku.lobby')||{};
 $('inName').value=saved.name||'';$('inCode').value=saved.code||'';
 setRole(saved.role==='host'?'host':'guest');
@@ -386,7 +389,7 @@ $('lobbyForm').addEventListener('submit',e=>{
   if(!/^[a-z0-9]{4,16}$/.test(c)){$('lobbyErr').textContent='部屋コードは英数字4〜16文字にしてください';return}
   const P=window.Peer||(window.peerjs&&window.peerjs.Peer);
   if(!P){$('lobbyErr').textContent='通信ライブラリを読み込めませんでした。インターネットにつながった状態で開き直してください。';return}
-  me.name=name;code=c;store.set('kurotaku.lobby',{name,code:c,role});
+  me.name=name;code=c;store.set('kurotaku.lobby',{name,code:c,role});sess.set({name,code:c,role});
   enterTable();
   role==='host'?startHost():startGuest();
 });
@@ -790,7 +793,7 @@ function openHostPeer(tries){
   peer.on('disconnected',()=>{if(alive){status('仲介サーバーとの接続が切れました。再接続しています…',true);setTimeout(()=>{try{alive&&peer.reconnect()}catch(e){}},2000)}});
   peer.on('error',e=>{
     if(e.type==='unavailable-id'){try{peer.destroy()}catch(x){}
-      if(tries<4){status('同じ部屋コードの卓が開いていないか確認しています…');setTimeout(()=>alive&&openHostPeer(tries+1),3000);return}
+      if(tries<7){status('同じ部屋コードの卓が開いていないか確認しています…');setTimeout(()=>alive&&openHostPeer(tries+1),3000);return}
       status('この部屋コードはすでに使われています。退室して別のコードにしてください',true);return}
     if(e.type==='network'||e.type==='server-error'||e.type==='socket-error'){status('仲介サーバーにつながりません（'+e.type+'）',true);return}
     if(e.type==='browser-incompatible'){status('このブラウザはWebRTCに対応していません',true);return}
@@ -830,6 +833,7 @@ function limited(from,kind,max){const k=from+kind,now=Date.now();const r=(rate.g
 function hostAccept(from,d){
   const p=members.find(x=>x.cid===from);if(!p)return;
   if(d.type==='sheet'){if(limited(from,'s',25))return;hostSetSheet(from,d.sheet);return}
+  if(d.type==='resync'){if(limited(from,'r',3))return;const ent=conns.get(from);if(ent)safeSend(ent.conn,{type:'welcome',...viewFor(from)});return}
   if(limited(from,'m',10))return;
   if(d.type==='say'){
     const text=String(d.text||'').trim().slice(0,4000);if(!text)return;
@@ -1124,14 +1128,14 @@ function connectHost(){
     lastPing=Date.now();
     switch(d.type){
       case'ping':safeSend(c,{type:'pong'});return;
-      case'reject':alive=false;status(String(d.reason||'入室できませんでした'),true);return;
-      case'kicked':alive=false;hostConn=null;try{c.close()}catch(e){}status('ホストに退室させられました',true);return;
+      case'reject':alive=false;sess.del();status(String(d.reason||'入室できませんでした'),true);return;
+      case'kicked':alive=false;sess.del();hostConn=null;try{c.close()}catch(e){}status('ホストに退室させられました',true);return;
       case'welcome':
         log=Array.isArray(d.log)?d.log:[];members=Array.isArray(d.members)?d.members:[];
         sheets={};if(d.sheets)for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}
         clues=Array.isArray(d.clues)?d.clues:[];progress=String(d.progress||'');scene=d.scene&&safeImg(d.scene.data)?d.scene:null;board=Array.isArray(d.board)?d.board:[];
         cfg=d.cfg&&typeof d.cfg==='object'?{...DEFAULT_CFG,...d.cfg}:{...DEFAULT_CFG};renderTplButtons();
-        renderAll();status('卓に接続しました');$('gmBusy').classList.toggle('hidden',!d.busy);return;
+        clearTimeout(resyncT);renderAll();status(resyncing?'同期し直しました（'+hhmm(Date.now())+'）':'卓に接続しました');resyncing=false;$('gmBusy').classList.toggle('hidden',!d.busy);return;
       case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m)}return;
       case'upd':if(d.m&&d.m.id)replaceMsg(d.m);return;
       case'config':applyCfg(d.cfg);return;
@@ -1149,13 +1153,44 @@ function connectHost(){
 }
 function sendToHost(obj){if(safeSend(hostConn,obj))return true;status('卓に接続されていないため送れませんでした。再接続を待ってください',true);return false}
 
+/* ===== 同期し直す ===== */
+let resyncT=null,resyncing=false;
+$('syncBtn').onclick=()=>{
+  if(role==='host'){hostResync();return}
+  if(!alive){status('この卓には入れない状態です。退室して入り直してください',true);return}
+  resyncing=true;status('同期し直しています…');
+  if(hostConn&&hostConn.open&&safeSend(hostConn,{type:'resync'})){
+    clearTimeout(resyncT);resyncT=setTimeout(forceReconnect,4000);  // 返事がなければ、つなぎ直す
+    return;
+  }
+  forceReconnect();
+};
+function forceReconnect(){
+  clearTimeout(retryT);clearTimeout(resyncT);
+  const old=hostConn;hostConn=null;if(old){try{old.close()}catch(e){}}
+  status('卓につなぎ直しています…');
+  if(!peer||peer.destroyed){startGuest();return}
+  if(peer.disconnected){try{peer.reconnect()}catch(e){}retryLater();return}
+  connectHost();
+}
+function hostResync(){
+  if(!peer||peer.destroyed)openHostPeer(0);
+  else if(peer.disconnected){try{peer.reconnect()}catch(e){}}
+  renderAll();
+  conns.forEach((ent,k)=>safeSend(ent.conn,{type:'welcome',...viewFor(k)}));
+  status('全員に卓の状態を送り直しました（'+hhmm(Date.now())+'）');
+}
+
 /* ===== 退室 ===== */
 $('leaveBtn').onclick=()=>{
-  alive=false;clearInterval(pingT);clearTimeout(retryT);
+  sess.del();alive=false;clearInterval(pingT);clearTimeout(retryT);
   try{peer&&peer.destroy()}catch(e){}
   peer=null;hostConn=null;conns.clear();editTarget=null;$('editorWrap').textContent='';
   $('table').classList.add('hidden');$('lobby').classList.remove('hidden');$('lobbyErr').textContent='';
 };
+(()=>{const v=sess.get();if(!v||!v.name||!v.code)return;
+  $('inName').value=v.name;$('inCode').value=v.code;setRole(v.role==='host'?'host':'guest');
+  setTimeout(()=>$('lobbyForm').requestSubmit(),0)})();
 window.addEventListener('beforeunload',e=>{if(role==='host'&&alive&&conns.size){e.preventDefault();e.returnValue=''}});
 })();
 </script>
