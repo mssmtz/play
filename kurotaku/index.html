@@ -256,7 +256,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
         <div id="sheetList"></div>
         <div id="newSheet" class="hidden" style="display:grid;gap:6px">
           <p class="small">あなたのキャラクターシートはまだありません。</p>
-          <div class="tools"><button type="button" id="mkKouseki" class="primary">航跡ルールのひな形で作る</button><button type="button" id="mkBlank">空のシートで作る</button></div>
+          <div class="tools" id="tplButtons"></div>
         </div>
         <div id="editorWrap"></div>
       </div>
@@ -270,7 +270,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
             <div><label for="dTgt">目標値</label><input id="dTgt" type="number" inputmode="numeric" placeholder="なし" min="1" max="999"></div>
             <div><label for="dLabel">何の判定か</label><input id="dLabel" maxlength="30" placeholder="例：知＋観察"></div>
           </div>
-          <label class="chk hidden" id="dHiraWrap"><input type="checkbox" id="dHira">ひらめきを使う（＋2。シートのひらめきが減ります）</label>
+          <div id="dResWrap" style="display:grid;gap:4px"></div>
           <div class="err" id="diceErr"></div>
           <button class="primary" type="submit">振る</button>
           <div class="diceRes" id="diceRes" aria-live="polite">—</div>
@@ -384,7 +384,7 @@ function zoom(src){if(!safeImg(src))return;$('zoom').querySelector('img').src=sr
 const safeImg=s=>typeof s==='string'&&/^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,/.test(s);
 
 /* ===== 描画：発言 ===== */
-function renderAll(){renderLogs();renderMembers();renderSheets();renderClues();renderProgress();renderScene();renderBoard();buildTo()}
+function renderAll(){renderTplButtons();renderLogs();renderMembers();renderSheets();renderClues();renderProgress();renderScene();renderBoard();buildTo()}
 function shownLog(){return role==='host'?log.filter(m=>vis(m,cid)):log}
 function renderLogs(){
   const g=$('gmLog'),p=$('plLog');g.textContent='';p.textContent='';
@@ -419,7 +419,7 @@ function msgEl(m){
   const b=el('div','body');
   if(m.kind==='dice'){
     const r=m.dice;
-    b.append(el('span',null,(r.label?r.label+'　':'')+r.n+'D'+r.s+(r.mod?(r.mod>0?'+':'')+r.mod:'')+(r.tgt!=null?' 目標'+r.tgt:'')),el('span',null,'['+r.rolls.join(',')+']'),el('span','dsum','＝'+r.total));
+    b.append(el('span',null,(r.label?r.label+'　':'')+r.n+'D'+r.s+(r.mod?(r.mod>0?'+':'')+r.mod:'')+(r.tgt!=null?' '+tgtText(r):'')),el('span',null,'['+r.rolls.join(',')+']'),el('span','dsum','＝'+r.total));
     const map={crit:['6ゾロ・成功','ok'],fumble:['1ゾロ・失敗','ng'],ok:['成功','ok'],ng:['失敗','ng']};
     if(map[r.res])b.append(el('span','tag '+map[r.res][1],map[r.res][0]));
   }else if(m.kind==='gm')richText(b,m.text);
@@ -427,8 +427,8 @@ function msgEl(m){
   d.append(b);return d;
 }
 // GMが出した判定：対象のPLにだけ「振る」ボタンが出る
-function qText(q){return(q.label?q.label+'　':'')+q.n+'D'+q.s+(q.mod?(q.mod>0?'+':'')+q.mod:'')+(q.tgt!=null?'　目標'+q.tgt:'')}
-function hiraLeft(c){const s=sheets[c];const h=s&&s.status.find(x=>norm(x.l)==='ひらめき');return h?h.c:0}
+function tgtText(q){return q.tgt!=null?'目標'+q.tgt+(q.cmp==='<='?'以下':''):''}
+function qText(q){return(q.label?q.label+'　':'')+q.n+'D'+q.s+(q.mod?(q.mod>0?'+':'')+q.mod:'')+(q.tgt!=null?'　'+tgtText(q):'　（成否なし）')}
 function checkEl(m,d){
   d.classList.toggle('done',!!m.done);d.classList.toggle('expired',!!m.expired);
   const who=el('div','who');who.append(el('span',null,'判定'),el('time',null,hhmm(m.t)));
@@ -437,20 +437,21 @@ function checkEl(m,d){
   if(m.done){b.append(el('div','small','振りました（結果はすぐ下のダイスの行）'))}
   else if(m.expired){b.append(el('div','small','GMが次へ進んだため、この判定は締め切られました'))}
   else if(m.to===cid){
-    const ex=el('div','extra');const ev=el('input');ev.type='number';ev.inputMode='numeric';ev.min='-10';ev.max='10';ev.placeholder='0';ev.setAttribute('aria-label','その他の修正の値');
+    const plain=m.q.tgt==null;
+    const ex=el('div','extra');if(plain)ex.classList.add('hidden');const ev=el('input');ev.type='number';ev.inputMode='numeric';ev.min='-10';ev.max='10';ev.placeholder='0';ev.setAttribute('aria-label','その他の修正の値');
     const ew=el('input');ew.maxLength=20;ew.placeholder='理由（例：協力・早瀬）';ew.setAttribute('aria-label','その他の修正の理由');
     ex.append(el('span',null,'その他の修正'),ev,ew);b.append(ex);
     const err=el('div','err');err.style.minHeight='0';
     [ev,ew].forEach(i=>i.addEventListener('input',()=>err.textContent=''));
-    const row=el('div','row');let hb=null;
-    if(hiraLeft(cid)>0){const lb=el('label','chk');hb=el('input');hb.type='checkbox';lb.append(hb,document.createTextNode('ひらめきを使う（＋2）'));row.append(lb)}
+    const row=el('div','row');
+    const rbs=(plain?[]:usableRes(cid)).map(r=>{const lb=el('label','chk');const i=el('input');i.type='checkbox';i.value=r.name;lb.append(i,document.createTextNode(resLabel(r)));row.append(lb);return i});
     const go=el('button','primary','振る');go.type='button';
     go.onclick=()=>{
       const v=ev.value.trim()===''?0:parseInt(ev.value,10);
       if(!Number.isFinite(v)||Math.abs(v)>10){err.textContent='その他の修正は −10〜＋10 の数字で入れてください';return}
       if(v&&!ew.value.trim()){err.textContent='その他の修正には理由を書いてください（GMが確かめます）';return}
       err.textContent='';go.disabled=true;go.textContent='振っています…';
-      requestRoll(m.q,m.id,hb&&hb.checked,v?{v,why:ew.value.trim()}:null);
+      requestRoll(m.q,m.id,rbs.filter(i=>i.checked).map(i=>i.value),v?{v,why:ew.value.trim()}:null);
       setTimeout(()=>{if(!m.done){go.disabled=false;go.textContent='振る'}},5000)};
     row.append(go);b.append(row,err);
   }else b.append(el('div','small','このPLが振るのを待っています'));
@@ -513,11 +514,49 @@ function renderClues(){
   list.forEach(c=>{const d=el('div','clue');const h=el('h3',null,c.title);if(c.to)h.append(el('span','badge','あなただけ'));d.append(h,el('p',null,c.body));p.append(d)});
 }
 
-/* ===== キャラクターシート ===== */
-const TEMPLATES={
-  kouseki:()=>({pc:'',status:[{l:'HP',c:6,m:6},{l:'ひらめき',c:1,m:1}],params:[{l:'体',v:'0'},{l:'技',v:'0'},{l:'知',v:'0'},{l:'心',v:'0'}],skills:'得意（＋3）：\n習得（＋2）：',items:'スマートフォン、財布、',memo:''}),
-  blank:()=>({pc:'',status:[{l:'HP',c:10,m:10}],params:[],skills:'',items:'',memo:''})
-};
+/* ===== 卓設定（シナリオのGMフォルダの 卓設定.json。中継の /config から読む） ===== */
+// シートのひな形、特殊な資源（ひらめき など）、判定の向き、ゾロ目の表示。設定がなければ「空のシート」だけ
+const DEFAULT_CFG={templates:[],resources:[],dir:'>=',zoro:true};
+let cfg={...DEFAULT_CFG};
+const BLANK_TPL=()=>({pc:'',status:[{l:'HP',c:10,m:10}],params:[],skills:'',items:'',memo:''});
+function normalizeCfg(raw){
+  const out={templates:[],resources:[],dir:'>=',zoro:true};
+  if(!raw||typeof raw!=='object')return out;
+  const T=raw['シートのひな形']||raw.templates;
+  if(Array.isArray(T))T.slice(0,6).forEach(t=>{
+    if(!t||typeof t!=='object')return;
+    const name=String(t['名前']||t.name||'').trim().slice(0,20);if(!name)return;
+    const st=(t['ステータス']||t.status||[]),pa=(t['パラメータ']||t.params||[]);
+    const sheet=cleanSheet({pc:'',
+      status:(Array.isArray(st)?st:[]).map(x=>({l:x&&(x['名前']??x.l),c:x&&(x['現在']??x.c),m:x&&(x['最大']??x.m)})),
+      params:(Array.isArray(pa)?pa:[]).map(x=>({l:x&&(x['名前']??x.l),v:x&&(x['値']??x.v)})),
+      skills:t['技能']??t.skills,items:t['持ち物']??t.items,memo:t['メモ']??t.memo});
+    if(sheet)out.templates.push({name,sheet});
+  });
+  const R=raw['特殊な資源']||raw.resources;
+  if(Array.isArray(R))R.slice(0,4).forEach(r=>{
+    if(!r||typeof r!=='object')return;
+    const name=String(r['名前']||r.name||'').trim().slice(0,12);const mod=Math.trunc(+(r['修正']??r.mod));const cost=Math.trunc(+(r['減る量']??r.cost??1));
+    if(name&&Number.isFinite(mod)&&Math.abs(mod)<=20&&cost>=1&&cost<=10)out.resources.push({name,mod,cost});
+  });
+  const J=raw['判定']||raw.check||{};
+  const d=String(J['成功']??J.dir??'以上');out.dir=/以下|<=/.test(d)?'<=':'>=';
+  const z=String(J['ゾロ目の表示']??J.zoro??'2D6');out.zoro=!/なし|false|off/i.test(z);
+  return out;
+}
+function applyCfg(c){cfg=c&&typeof c==='object'?{...DEFAULT_CFG,...c}:{...DEFAULT_CFG};renderTplButtons();renderSheets();renderDiceRes()}
+function renderTplButtons(){
+  const box=$('tplButtons');box.textContent='';
+  cfg.templates.forEach((t,i)=>{const b=el('button',i===0?'primary':null,t.name+'のひな形で作る');b.type='button';b.onclick=()=>{commitSheet(cid,{...t.sheet,status:t.sheet.status.map(x=>({...x})),params:t.sheet.params.map(x=>({...x}))},true);openEditor(cid)};box.append(b)});
+  const b=el('button',cfg.templates.length?null:'primary','空のシートで作る');b.type='button';b.onclick=()=>{commitSheet(cid,BLANK_TPL(),true);openEditor(cid)};box.append(b);
+}
+// そのPCが今使える特殊な資源
+function usableRes(c){const s=sheets[c];if(!s)return[];return cfg.resources.map(r=>{const h=s.status.find(x=>norm(x.l)===norm(r.name));return{...r,left:h?h.c:0}}).filter(r=>r.left>=r.cost)}
+function resLabel(r){return r.name+'を使う（'+(r.mod>=0?'＋':'−')+Math.abs(r.mod)+'）'}
+function renderDiceRes(){
+  const box=$('dResWrap');if(!box)return;const keep=new Set([...box.querySelectorAll('input:checked')].map(i=>i.value));box.textContent='';
+  usableRes(cid).forEach(r=>{const lb=el('label','chk');const i=el('input');i.type='checkbox';i.value=r.name;i.checked=keep.has(r.name);lb.append(i,document.createTextNode(resLabel(r)+'（シートの'+r.name+'が減ります）'));box.append(lb)});
+}
 const int=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)?Math.max(-999,Math.min(9999,n)):d};
 function cleanSheet(s){
   if(!s||typeof s!=='object')return null;
@@ -550,7 +589,7 @@ function renderSheets(){
   });
   if(!order.length)box.append(el('div','emptyBox','まだ誰もシートを作っていません'));
   $('newSheet').classList.toggle('hidden',!!sheets[cid]);
-  $('dHiraWrap').classList.toggle('hidden',!(hiraLeft(cid)>0));if(!(hiraLeft(cid)>0))$('dHira').checked=false;
+  renderDiceRes();
   document.querySelectorAll('.m.check').forEach(e=>{const m=log.find(x=>x.id===e.dataset.id);if(m&&!m.done&&!m.expired&&m.to===cid&&!e.contains(document.activeElement))e.replaceWith(msgEl(m))});
   if(editTarget&&!sheets[editTarget])closeEditor();
   else if(editTarget)syncEditor();
@@ -568,8 +607,7 @@ function syncEditor(){
   s.params.forEach((x,i)=>{set(pr[i].querySelector('[data-f=l]'),x.l);set(pr[i].querySelector('[data-f=v]'),x.v)});
   ['skills','items','memo'].forEach(k=>set(q(k),s[k]));
 }
-$('mkKouseki').onclick=()=>{commitSheet(cid,TEMPLATES.kouseki(),true);openEditor(cid)};
-$('mkBlank').onclick=()=>{commitSheet(cid,TEMPLATES.blank(),true);openEditor(cid)};
+renderTplButtons();
 function openEditor(c){editTarget=c;fillEditor();renderSheets()}
 function closeEditor(){editTarget=null;$('editorWrap').textContent='';renderSheets()}
 function fillEditor(){
@@ -616,12 +654,12 @@ function parseDice(text){
   const m=text.trim().match(/^(\d{1,2})[dD](\d{1,3})\s*([+-]\s*\d{1,3})?\s*(>=|<=)?\s*(\d{1,3})?\s*(.*)$/);
   if(!m)return null;
   const n=+m[1],s=+m[2];if(n<1||n>20||s<2||s>100)return null;if(m[4]&&!m[5])return null;
-  return{n,s,mod:m[3]?parseInt(m[3].replace(/\s/g,'')):0,cmp:m[4]||(m[5]?'>=':null),tgt:m[5]?+m[5]:null,label:(m[6]||'').trim().slice(0,30)};
+  return{n,s,mod:m[3]?parseInt(m[3].replace(/\s/g,'')):0,cmp:m[4]||null,tgt:m[5]?+m[5]:null,label:(m[6]||'').trim().slice(0,30)};
 }
 function rollDice(q){
   const a=new Uint32Array(q.n);crypto.getRandomValues(a);
   const rolls=[...a].map(x=>x%q.s+1);const raw=rolls.reduce((p,c)=>p+c,0);const total=raw+q.mod;
-  let res='';const is2d6=q.n===2&&q.s===6;
+  let res='';const is2d6=cfg.zoro&&q.n===2&&q.s===6&&q.tgt!=null&&q.cmp!=='<=';
   if(is2d6&&raw===12)res='crit';else if(is2d6&&raw===2)res='fumble';
   else if(q.tgt!=null)res=(q.cmp==='<='?total<=q.tgt:total>=q.tgt)?'ok':'ng';
   return{n:q.n,s:q.s,mod:q.mod,tgt:q.tgt,cmp:q.cmp,label:q.label,rolls,total,res};
@@ -631,7 +669,7 @@ function cleanRollReq(q){
   const n=Math.trunc(+q.n),s=Math.trunc(+q.s),mod=Math.trunc(+q.mod)||0;
   if(!(n>=1&&n<=20&&s>=2&&s<=100&&Math.abs(mod)<=50))return null;
   const tgt=q.tgt==null||q.tgt===''?null:Math.trunc(+q.tgt);if(tgt!=null&&!(tgt>=1&&tgt<=999))return null;
-  return{n,s,mod,tgt,cmp:q.cmp==='<='?'<=':(tgt!=null?'>=':null),label:String(q.label||'').slice(0,30)};
+  return{n,s,mod,tgt,cmp:tgt==null?null:(q.cmp==='<='||q.cmp==='>='?q.cmp:cfg.dir),label:String(q.label||'').slice(0,30)};
 }
 $('diceForm').addEventListener('submit',e=>{
   e.preventDefault();
@@ -642,10 +680,11 @@ $('diceForm').addEventListener('submit',e=>{
   if(tv!==''&&Number.isNaN(tgt)){$('diceErr').textContent='目標値は数字で入れてください';return}
   const q=cleanRollReq({n:+em[1],s:+em[2],mod,tgt,label:$('dLabel').value.trim()});
   if(!q){$('diceErr').textContent='ダイスの数か面の数が範囲外です（1〜20個、2〜100面）';return}
-  $('diceErr').textContent='';requestRoll(q,null,$('dHira').checked);$('dHira').checked=false;
+  const res=[...$('dResWrap').querySelectorAll('input:checked')].map(i=>i.value);
+  $('diceErr').textContent='';requestRoll(q,null,res);$('dResWrap').querySelectorAll('input').forEach(i=>i.checked=false);
 });
 ['dExpr','dMod','dTgt'].forEach(i=>$(i).addEventListener('input',()=>$('diceErr').textContent=''));
-function requestRoll(q,check,hira,extra){const d={type:'roll',q,check:check||null,hira:!!hira,extra:extra||null};if(role==='host')hostAccept(cid,d);else sendToHost(d)}
+function requestRoll(q,check,res,extra){const d={type:'roll',q,check:check||null,res:Array.isArray(res)?res.slice(0,4):[],extra:extra||null};if(role==='host')hostAccept(cid,d);else sendToHost(d)}
 function showMyRoll(m){if(m.kind==='dice'&&m.cid===cid){const r=m.dice;$('diceRes').textContent=r.rolls.join('＋')+(r.mod?(r.mod>0?'＋':'−')+Math.abs(r.mod):'')+'＝'+r.total}}
 
 /* ===== 送信 ===== */
@@ -663,12 +702,12 @@ $('sayForm').addEventListener('submit',e=>{
 
 /* ===== ホスト ===== */
 function roomKey(){return'kurotaku.room.'+code}
-function saveRoom(){store.set(roomKey(),{log,sheets,clues,progress,scene:scene?{name:scene.name}:null,gmCursor,notes,banned,boardList})}
+function saveRoom(){store.set(roomKey(),{log,sheets,clues,progress,scene:scene?{name:scene.name}:null,gmCursor,notes,banned,boardList,cfg})}
 function startHost(){
   const r=store.get(roomKey())||{};
   log=Array.isArray(r.log)?r.log:[];sheets={};if(r.sheets&&typeof r.sheets==='object')for(const k in r.sheets){const s=cleanSheet(r.sheets[k]);if(s)sheets[k]=s}
   clues=Array.isArray(r.clues)?r.clues:[];progress=typeof r.progress==='string'?r.progress:'';
-  gmCursor=typeof r.gmCursor==='string'?r.gmCursor:null;notes=Array.isArray(r.notes)?r.notes:[];banned=r.banned&&typeof r.banned==='object'?r.banned:{};renderBanned();boardList=Array.isArray(r.boardList)?r.boardList.filter(x=>x&&typeof x.name==='string'&&(x.dir==='board'||x.dir==='maps')):null;
+  gmCursor=typeof r.gmCursor==='string'?r.gmCursor:null;notes=Array.isArray(r.notes)?r.notes:[];banned=r.banned&&typeof r.banned==='object'?r.banned:{};renderBanned();boardList=Array.isArray(r.boardList)?r.boardList.filter(x=>x&&typeof x.name==='string'&&(x.dir==='board'||x.dir==='maps')):null;if(r.cfg&&typeof r.cfg==='object')cfg={...DEFAULT_CFG,...r.cfg};
   scene=null;board=[];pendingSceneName=r.scene&&r.scene.name||null;
   members=[{cid,name:me.name,role:'host',online:true}];
   const gs=store.get('kurotaku.gm')||{};if(gs.url)$('gmUrl').value=gs.url;if(gs.token)$('gmToken').value=gs.token;
@@ -695,7 +734,7 @@ function openHostPeer(tries){
     console.warn('peer error',e.type);
   });
 }
-function viewFor(v){return{log:log.filter(m=>vis(m,v)),members:pubMembers(),sheets,clues:clues.filter(c=>visClue(c,v)),progress,scene,board,busy:gmBusy}}
+function viewFor(v){return{log:log.filter(m=>vis(m,v)),members:pubMembers(),sheets,clues:clues.filter(c=>visClue(c,v)),progress,scene,board,busy:gmBusy,cfg}}
 function hostBind(c){
   let who=null;
   c.on('data',d=>{
@@ -738,9 +777,13 @@ function hostAccept(from,d){
     let q,chk=null;
     if(d.check){chk=log.find(m=>m.id===d.check&&m.kind==='check');if(!chk||chk.to!==from||chk.done||chk.expired)return;q={...chk.q}}
     else{q=cleanRollReq(d.q);if(!q)return}
-    if(d.hira){const s=sheets[from];const h=s&&s.status.find(x=>norm(x.l)==='ひらめき');
-      if(h&&h.c>0){const b=h.c;h.c-=1;q.mod+=2;q.label=(q.label?q.label:'')+'（ひらめき＋2）';saveRoom();sendAll({type:'sheets',sheets});renderSheets();
-        hostPush({kind:'gsys',text:(s.pc||p.name)+' の ひらめき：'+b+' → '+h.c})}}
+    if(q.tgt==null){d.res=[];d.extra=null}
+    if(Array.isArray(d.res)&&d.res.length){const s=sheets[from];const used=new Set();
+      d.res.forEach(nm=>{const r=cfg.resources.find(x=>x.name===String(nm));if(!r||used.has(r.name)||!s)return;used.add(r.name);
+        const h=s.status.find(x=>norm(x.l)===norm(r.name));if(!h||h.c<r.cost)return;
+        const b=h.c;h.c-=r.cost;q.mod+=r.mod;q.label=(q.label?q.label:'')+'（'+r.name+(r.mod>=0?'＋':'−')+Math.abs(r.mod)+'）';
+        hostPush({kind:'gsys',text:(s.pc||p.name)+' の '+h.l+'：'+b+' → '+h.c})});
+      if(used.size){saveRoom();sendAll({type:'sheets',sheets});renderSheets()}}
     if(chk&&d.extra&&typeof d.extra==='object'){const v=Math.trunc(+d.extra.v);const why=String(d.extra.why||'').trim().slice(0,20);
       if(v&&Math.abs(v)<=10&&why){q.mod+=v;q.label=(q.label?q.label:'')+'（'+why+(v>0?'＋':'−')+Math.abs(v)+'）'}}
     if(chk){chk.done=true;hostUpd(chk)}
@@ -810,7 +853,7 @@ function sheetLine(c){
 function fmtEntry(m){
   const t='['+hhmm(m.t)+'] ';const who=m.pc?m.pc+'（'+m.name+'）':m.name;
   if(m.kind==='dice'){const r=m.dice;
-    return t+'ダイス '+who+'：'+(r.label?r.label+' ':'')+r.n+'D'+r.s+(r.mod?(r.mod>0?'+':'')+r.mod:'')+(r.tgt!=null?' 目標'+r.tgt:'')+' → ['+r.rolls.join(',')+']＝'+r.total+(r.res?' '+{crit:'6ゾロ（自動成功）',fumble:'1ゾロ（自動失敗）',ok:'成功',ng:'失敗'}[r.res]:'')}
+    return t+'ダイス '+who+'：'+(r.label?r.label+' ':'')+r.n+'D'+r.s+(r.mod?(r.mod>0?'+':'')+r.mod:'')+(r.tgt!=null?' '+tgtText(r):'（成否なし）')+' → ['+r.rolls.join(',')+']＝'+r.total+(r.res?' '+{crit:'6ゾロ（自動成功）',fumble:'1ゾロ（自動失敗）',ok:'成功',ng:'失敗'}[r.res]:'')}
   if(m.kind==='gm')return t+'ホスト（GMの代わりに手で書いた描写'+(m.to?'・'+whoLabel(m.to)+'だけ':'')+'）：'+m.text;
   if(m.to==='gm')return t+who+'（GMにだけ・秘密）：'+m.text;
   return t+who+'：'+m.text;
@@ -840,7 +883,7 @@ async function gmFetch(p,opt={}){
 function setBusy(on){gmBusy=on;$('gmBtn').disabled=on;$('gmBtn').textContent=on?'GMが考え中…':'GMに渡す';$('gmBusy').classList.toggle('hidden',!on);sendAll({type:'busy',on})}
 async function pingRelay(quiet){
   if(!quiet)gmStat('確認しています…');
-  try{const j=await gmFetch('/ping');gmStat(j.busy?'つながっています（GMは返答中）':'つながっています',true);await loadBoard();if(pendingSceneName&&!scene){const n=pendingSceneName;pendingSceneName=null;await showScene(n,true)}}
+  try{const j=await gmFetch('/ping');gmStat((j.gmFolder?'「'+j.gmFolder+'」の中継に':'')+(j.busy?'つながっています（GMは返答中）':'つながっています'),true);await loadConfig();await loadBoard();if(pendingSceneName&&!scene){const n=pendingSceneName;pendingSceneName=null;await showScene(n,true)}}
   catch(e){if(!quiet)gmStat(e.message,false)}
 }
 $('gmPing').onclick=()=>pingRelay(false);
@@ -850,6 +893,11 @@ function shrink(data){
   return new Promise(res=>{
     if(!safeImg(data)||data.startsWith('data:image/svg'))return res(data);
     const img=new Image();img.onload=()=>{try{const k=Math.min(1,1600/Math.max(img.width,img.height));const cv=document.createElement('canvas');cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);const out=cv.toDataURL('image/jpeg',.85);res(out.length<data.length?out:data)}catch(e){res(data)}};img.onerror=()=>res(data);img.src=data});
+}
+async function loadConfig(){
+  try{const j=await gmFetch('/config');if(j.error)hostWarn(j.error);applyCfg(normalizeCfg(j.config));}
+  catch(e){applyCfg(normalizeCfg(null))}
+  saveRoom();sendAll({type:'config',cfg});
 }
 let boardDefault=[];
 function curBoardList(){return(boardList||boardDefault).map(x=>({...x}))}
@@ -923,8 +971,8 @@ async function applyGM(text){
       st.c=op==='+'?st.c+n:op==='-'?st.c-n:n;sheetChanged=true;
       hostPush({kind:'gsys',text:(s.pc||memberName(t))+' の '+st.l+'：'+before+' → '+st.c});
     }else if((m=line.match(/^進行\s+([\s\S]+)$/))){progress=m[1].slice(0,600);saveRoom();renderProgress();sendAll({type:'progress',text:progress});hostPush({kind:'gsys',text:'進行：'+progress})}
-    else if((m=line.match(/^判定\s+(\S+)\s+(.+?)\s+(\d{1,2})[dD](\d{1,3})\s*(?:([+\-＋－])\s*(\d{1,3}))?\s+目標(?:値)?\s*(\d{1,3})$/))){
-      const q=cleanRollReq({n:+m[3],s:+m[4],mod:m[6]?(/[-－]/.test(m[5])?-m[6]:+m[6]):0,tgt:+m[7],label:m[2]});
+    else if((m=line.match(/^判定\s+(\S+)\s+(.+?)\s+(\d{1,2})[dDＤ](\d{1,3})\s*(?:([+\-＋－])\s*(\d{1,3}))?(?:\s+目標(?:値)?\s*(\d{1,3}))?$/))){
+      const q=cleanRollReq({n:+m[3],s:+m[4],mod:m[6]?(/[-－]/.test(m[5])?-m[6]:+m[6]):0,tgt:m[7]!=null?+m[7]:null,label:m[2]});
       const targets=m[1]==='全員'?members.filter(x=>sheets[x.cid]).map(x=>x.cid):[resolve(m[1])].filter(Boolean);
       if(!q||!targets.length){hostWarn('操作「判定」を反映できませんでした：'+m[1]+'（PC名か、ダイスの書き方を確認）');continue}
       targets.forEach(t=>hostPush({kind:'check',cid:'GM',name:'GM',to:t,q:{...q}}));
@@ -1019,9 +1067,11 @@ function connectHost(){
         log=Array.isArray(d.log)?d.log:[];members=Array.isArray(d.members)?d.members:[];
         sheets={};if(d.sheets)for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}
         clues=Array.isArray(d.clues)?d.clues:[];progress=String(d.progress||'');scene=d.scene&&safeImg(d.scene.data)?d.scene:null;board=Array.isArray(d.board)?d.board:[];
+        cfg=d.cfg&&typeof d.cfg==='object'?{...DEFAULT_CFG,...d.cfg}:{...DEFAULT_CFG};renderTplButtons();
         renderAll();status('卓に接続しました');$('gmBusy').classList.toggle('hidden',!d.busy);return;
       case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m)}return;
       case'upd':if(d.m&&d.m.id)replaceMsg(d.m);return;
+      case'config':applyCfg(d.cfg);return;
       case'members':if(Array.isArray(d.members)){members=d.members;renderMembers();renderSheets();buildTo()}return;
       case'sheets':if(d.sheets){sheets={};for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}if(!sheets[cid])clearTimeout(sheetTimers[cid]);renderSheets();renderMembers();buildTo()}return;
       case'clues':if(Array.isArray(d.clues)){clues=d.clues;renderClues()}return;
