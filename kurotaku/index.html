@@ -50,7 +50,10 @@ header h1{font-size:16px;margin:0}
 @media(prefers-reduced-motion:no-preference){#gmBusy::before{animation:blink 1s infinite alternate}@keyframes blink{to{opacity:.2}}}
 .spacer{flex:1}
 
-.app{display:grid;grid-template-columns:300px minmax(0,1.15fr) minmax(0,1fr) 330px;min-height:0}
+.app{display:grid;grid-template-columns:300px 290px minmax(0,1.2fr) minmax(0,.8fr) 330px;min-height:0}
+#clueCol{background:var(--paper);border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#clueCol #secClue{flex:1 1 auto}
+.clueSep #secBoard{flex:1 1 0;max-height:none}
 .col{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0;border-right:1px solid var(--line)}
 .colHead{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--paper);min-height:52px}
 .colHead h2{font-size:15px;margin:0}
@@ -164,6 +167,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 #zoom{position:fixed;inset:0;background:rgba(0,0,0,.82);display:grid;place-items:center;z-index:10;padding:20px;cursor:zoom-out}
 #zoom img{max-width:100%;max-height:100%;object-fit:contain;background:#fff}
 
+@media(max-width:1499px){.app{grid-template-columns:300px minmax(0,1.15fr) minmax(0,1fr) 330px}#clueCol{display:none}}
 @media(max-width:1279px){.app{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) 320px}#left{display:none}}
 @media(max-width:860px){
  html,body{height:auto}#table{height:auto}
@@ -216,6 +220,8 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
         <section class="lsec" id="secClue" aria-label="手掛かり"><h3>手掛かり</h3><div class="scroll" id="pClue"></div></section>
       </div>
     </aside>
+    <!-- 手掛かりの列（広い画面のとき。せまいときは左欄に戻る） -->
+    <aside id="clueCol" aria-label="手掛かり"></aside>
 
     <!-- 中央左：GM欄 -->
     <section class="col" aria-label="GM">
@@ -234,7 +240,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
           <select id="sayTo" aria-label="宛先"></select>
         </div>
         <div class="inRow">
-          <textarea id="sayText" rows="2" maxlength="4000" placeholder="行動や発言（Enterで送信、Shift+Enterで改行）"></textarea>
+          <textarea id="sayText" rows="2" maxlength="4000" placeholder="行動や発言（Enterで送信）" title="Enterで送信、Shift+Enterで改行"></textarea>
           <button class="primary send" type="submit">送信</button>
         </div>
         <p class="hint">「2d6+3>=10 観察」と打つとダイスを振れます（宛先が全体のとき）。</p>
@@ -371,6 +377,12 @@ document.querySelectorAll('[data-tabs]').forEach(tl=>{
   tl.addEventListener('click',e=>{const b=e.target.closest('[role=tab]');if(!b)return;selectTab(tl,b)});
 });
 function selectTab(tl,b){tl.querySelectorAll('[role=tab]').forEach(x=>{const on=x===b;x.setAttribute('aria-selected',on);$(x.dataset.panel).classList.toggle('hidden',!on)})}
+const wideMQ=matchMedia('(min-width:1500px)');
+function placeClue(){
+  if(wideMQ.matches){$('clueCol').append($('secClue'));document.body.classList.add('clueSep')}
+  else{$('leftInner').append($('secClue'));document.body.classList.remove('clueSep')}
+}
+wideMQ.addEventListener('change',placeClue);placeClue();
 const narrow=matchMedia('(max-width:1279px)');
 function placeLeft(){
   const inner=$('leftInner');
