@@ -89,7 +89,23 @@ header h1{font-size:16px;margin:0}
 .tag.ok{background:var(--okbg);color:var(--ok)}.tag.ng{background:var(--ngbg);color:var(--ng)}
 
 /* 入力欄 */
-.composer{border-top:1px solid var(--line);background:var(--paper);padding:10px 12px;display:grid;gap:6px}
+.composer{border-top:3px solid var(--accent);background:var(--paper);padding:8px 12px 10px;display:grid;gap:6px}
+.composer.to-secret{border-top-color:var(--secret)}.composer.to-note{border-top-color:var(--gmline)}
+.sendTo{font-size:13px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:6px}
+.sendTo::before{content:"▶";font-size:11px}
+.to-secret .sendTo{color:var(--secret)}.to-note .sendTo{color:var(--gmline)}
+.to-secret .send{background:var(--secret);border-color:var(--secret)}.to-note .send{background:var(--gmline);border-color:var(--gmline)}
+.colTabs{display:flex;gap:2px;align-self:stretch;align-items:stretch}
+.colTabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;min-height:0;padding:0 12px;font-size:15px;font-weight:600;color:var(--mute)}
+.colTabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.colTabs button[data-panel=memoPane][aria-selected=true]{border-bottom-color:var(--gmline)}
+.colTabs button.unread::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:2px}
+.plcol{grid-template-rows:auto minmax(0,1fr)}
+.pane{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0}
+#memoPane{grid-template-rows:auto minmax(0,1fr) auto;padding:10px 12px;gap:6px;background:var(--gm)}
+.memoNote{font-size:12px;color:var(--mute);margin:0}
+#memoText{width:100%;height:100%;min-height:0;resize:none;border:2px dashed var(--gmline);border-radius:10px;background:light-dark(#fffdf6,#24211b);padding:10px 12px;font-size:15px;line-height:1.75}
+.memoSaved{font-size:12px;color:var(--mute);text-align:right;margin:0;min-height:18px}
 .composer .selRow{display:flex;gap:6px;flex-wrap:wrap}
 .composer .selRow select{width:auto;flex:1 1 140px;min-height:34px;font-size:14px}
 .composer .inRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:end}
@@ -170,6 +186,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 @media(max-width:1499px){.app{grid-template-columns:300px minmax(0,1.15fr) minmax(0,1fr) 330px}#clueCol{display:none}}
 @media(max-width:1279px){.app{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) 320px}#left{display:none}}
 @media(max-width:860px){
+ #memoText{min-height:50vh}
  html,body{height:auto}#table{height:auto}
  .app{grid-template-columns:1fr}
  .col{border-right:0;border-bottom:1px solid var(--line)}
@@ -231,10 +248,17 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
     </section>
 
     <!-- 中央右：PL欄 -->
-    <section class="col" aria-label="PL">
-      <div class="colHead"><h2>PL</h2></div>
+    <section class="col plcol" aria-label="PL">
+      <div class="colHead" style="padding-bottom:0;padding-top:0">
+        <div class="colTabs" role="tablist" data-tabs="pl">
+          <button type="button" role="tab" data-panel="plPane" aria-selected="true" id="tabPl">PLチャット</button>
+          <button type="button" role="tab" data-panel="memoPane" aria-selected="false" id="tabMemo">個人メモ</button>
+        </div>
+      </div>
+      <div class="pane" id="plPane" role="tabpanel" aria-label="PLチャット">
       <div class="log" id="plLog" aria-live="polite"></div>
       <form class="composer" id="sayForm">
+        <div class="sendTo" id="sendToLbl">PLチャットに送信：全体（全員に見える）</div>
         <div class="selRow">
           <select id="sayAs" aria-label="発言の種類" class="hidden"></select>
           <select id="sayTo" aria-label="宛先"></select>
@@ -245,6 +269,12 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
         </div>
         <p class="hint">「2d6+3>=10 観察」と打つとダイスを振れます（宛先が全体のとき）。</p>
       </form>
+      </div>
+      <div class="pane hidden" id="memoPane" role="tabpanel" aria-label="個人メモ">
+        <p class="memoNote">あなただけのメモです。<strong>誰にも送られません</strong>（ホストにもGMにも）。このブラウザに自動で保存されます。</p>
+        <textarea id="memoText" maxlength="20000" placeholder="推理のメモ、気になったこと、NPCの名前など（送信ボタンはありません。書いたそばから保存されます）"></textarea>
+        <p class="memoSaved" id="memoSaved"></p>
+      </div>
     </section>
 
     <!-- 右：参加者・キャラ・ダイス・ホスト -->
@@ -368,15 +398,34 @@ function enterTable(){
   $('sayAs').classList.toggle('hidden',!host);
   $('sayAs').textContent='';
   if(host)[['self',me.name+'として'],['note','GMへの補足（ホストだけ）'],['gm','GMとして（手で描写）']].forEach(([v,t])=>{const o=el('option',null,t);o.value=v;$('sayAs').append(o)});
-  buildTo();renderAll();$('sayText').focus();
+  buildTo();renderAll();loadMemo();$('sayText').focus();
 }
+/* ===== 個人メモ（このブラウザだけ。誰にも送らない） ===== */
+function memoKey(){return'kurotaku.memo.'+code}
+function loadMemo(){const v=store.get(memoKey());$('memoText').value=typeof v==='string'?v:'';$('memoSaved').textContent=''}
+let memoT=null;
+$('memoText').addEventListener('input',()=>{clearTimeout(memoT);$('memoSaved').textContent='書いています…';memoT=setTimeout(()=>{store.set(memoKey(),$('memoText').value);$('memoSaved').textContent='このブラウザに保存しました（'+hhmm(Date.now())+'）'},400)});
+// 送信先の表示（誤爆防止）：宛先ごとに色と文が変わる
+function updateSendTo(){
+  const as=role==='host'?$('sayAs').value:'self';const to=$('sayTo').value;const f=$('sayForm');
+  let t,cls='';
+  if(as==='note'){t='GMへの補足（ホストとGMだけ。PLには見えない）';cls='to-note'}
+  else if(as==='gm'){t='GMの描写として送信：'+(to?whoLabel(to)+'にだけ':'全体（全員に見える）');cls=to?'to-secret':''}
+  else if(!to){t='PLチャットに送信：全体（全員に見える）'}
+  else if(to==='gm'){t='GMにだけ送信（秘密。ほかのPLには見えない）';cls='to-secret'}
+  else{t=whoLabel(to)+'にだけ送信（秘密）';cls='to-secret'}
+  $('sendToLbl').textContent=t;f.classList.remove('to-secret','to-note');if(cls)f.classList.add(cls);
+}
+$('sayTo').addEventListener('change',updateSendTo);
 function status(t,bad){$('hdrStatus').textContent=t;$('hdrStatus').classList.toggle('bad',!!bad)}
 
 /* ===== タブとレイアウト ===== */
 document.querySelectorAll('[data-tabs]').forEach(tl=>{
   tl.addEventListener('click',e=>{const b=e.target.closest('[role=tab]');if(!b)return;selectTab(tl,b)});
 });
-function selectTab(tl,b){tl.querySelectorAll('[role=tab]').forEach(x=>{const on=x===b;x.setAttribute('aria-selected',on);$(x.dataset.panel).classList.toggle('hidden',!on)})}
+function selectTab(tl,b){tl.querySelectorAll('[role=tab]').forEach(x=>{const on=x===b;x.setAttribute('aria-selected',on);$(x.dataset.panel).classList.toggle('hidden',!on)});
+  if(b.id==='tabPl'){b.classList.remove('unread');const l=$('plLog');l.scrollTop=l.scrollHeight;$('sayText').focus()}
+  if(b.id==='tabMemo')$('memoText').focus()}
 const wideMQ=matchMedia('(min-width:1500px)');
 function placeClue(){
   if(wideMQ.matches){$('clueCol').append($('secClue'));document.body.classList.add('clueSep')}
@@ -407,6 +456,7 @@ function renderLogs(){
 }
 function appendMsg(m){
   const box=inGMcol(m)?$('gmLog'):$('plLog');
+  if(box.id==='plLog'&&$('plPane').classList.contains('hidden')&&m.kind!=='sys')$('tabPl').classList.add('unread');
   const first=box.firstElementChild;if(box.children.length===1&&first.classList.contains('sys')&&!first.dataset.id)box.textContent='';
   const atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;
   box.append(msgEl(m));
@@ -504,6 +554,7 @@ function buildTo(){
   if(as!=='gm')add('gm','宛先：GMにだけ（秘密）');
   members.forEach(p=>{if(as==='gm'||p.cid!==cid)add(p.cid,'宛先：'+(pcName(p.cid)?pcName(p.cid)+'（'+p.name+'）':p.name)+'にだけ')});
   if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+  updateSendTo();
 }
 $('sayAs').addEventListener('change',buildTo);
 
