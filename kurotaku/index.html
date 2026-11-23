@@ -106,10 +106,15 @@ header h1{font-size:16px;margin:0}
 .memoNote{font-size:12px;color:var(--mute);margin:0}
 #memoText{width:100%;height:100%;min-height:0;resize:none;border:2px dashed var(--gmline);border-radius:10px;background:light-dark(#fffdf6,#24211b);padding:10px 12px;font-size:15px;line-height:1.75}
 .readyRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-#readyBtn{min-height:32px;font-size:13px;padding:0 10px}
+#readyBtn{min-height:40px;font-size:15px;font-weight:700;padding:0 18px;background:var(--ok);border:2px solid var(--ok);color:light-dark(#fff,#0f1f17);border-radius:10px}
+#readyBtn:hover{filter:brightness(1.08)}
 #readyBtn[aria-pressed=true]{background:var(--okbg);color:var(--ok);border-color:var(--ok);font-weight:700}
-#readyInfo{font-size:12px;color:var(--mute)}
+#readyInfo{font-size:13px}
+#readyInfo{color:var(--mute)}
 .readyTag{font-size:11px;font-weight:700;color:var(--ok);background:var(--okbg);border-radius:4px;padding:0 6px}
+.gmBtn.armed{background:var(--ng);border-color:var(--ng)}
+.colHead:has(#gmConfirm){position:relative}
+.gmConfirm{position:absolute;left:0;right:0;top:100%;z-index:3;box-shadow:0 4px 10px rgba(0,0,0,.15);padding:8px 14px;font-size:13px;font-weight:600;color:var(--ng);background:var(--ngbg);border-bottom:1px solid var(--line)}
 .gmBtn.allReady{box-shadow:0 0 0 3px var(--okbg),0 0 0 5px var(--ok)}
 .m.pending .body{border-style:dashed}
 .pendTag{font-size:11px;color:var(--mute);border:1px dashed var(--line);border-radius:4px;padding:0 5px}
@@ -119,6 +124,10 @@ header h1{font-size:16px;margin:0}
 .clue .from{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:0 5px}
 .clue .share{display:flex;gap:6px;margin-top:6px;align-items:center}
 .clue .share select{min-height:30px;padding:2px 6px;font-size:13px;width:auto;flex:1}
+.clueHead{display:flex;align-items:center;gap:8px}
+.linkBtn{margin-left:auto;min-height:0;padding:1px 8px;font-size:11px;font-weight:600;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--mute);cursor:pointer}
+.clue h3 .clueT{margin-left:auto;font-size:11px;font-weight:400;color:var(--mute)}
+.m.cshare.retracted{text-decoration:line-through;opacity:.7}
 .clue .shown{font-size:11px;color:var(--mute);margin-top:4px}
 .memoSaved{font-size:12px;color:var(--mute);text-align:right;margin:0;min-height:18px}
 .composer .selRow{display:flex;gap:6px;flex-wrap:wrap}
@@ -196,7 +205,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 .gmStat{font-size:12px;margin-top:4px}.gmStat.ok{color:var(--ok)}.gmStat.ng{color:var(--ng)}
 
 #zoom{position:fixed;inset:0;background:rgba(0,0,0,.82);display:grid;place-items:center;z-index:10;padding:20px;cursor:zoom-out}
-#zoom img{max-width:100%;max-height:100%;object-fit:contain;background:#fff}
+#zoom img{width:auto;height:auto;max-width:calc(100vw - 40px);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);object-fit:contain;background:#fff}
 
 @media(max-width:1499px){.app{grid-template-columns:300px minmax(0,1.15fr) minmax(0,1fr) 330px}#clueCol{display:none}}
 @media(max-width:1279px){.app{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) 320px}#left{display:none}}
@@ -250,7 +259,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
         <figure class="scene" id="scene"><div class="empty">情景画像はまだありません</div></figure>
         <section class="lsec" aria-label="進行"><h3>進行</h3><div id="pProg"></div></section>
         <section class="lsec" id="secBoard" aria-label="見取り図"><h3>見取り図</h3><div class="scroll" id="pBoard"></div></section>
-        <section class="lsec" id="secClue" aria-label="手掛かり"><h3>手掛かり</h3><div class="scroll" id="pClue"></div></section>
+        <section class="lsec" id="secClue" aria-label="手掛かり"><h3 class="clueHead">手掛かり<button type="button" class="linkBtn" id="clueOrderBtn" title="並び順を切り替えます（公開された手掛かりは、公開された時刻で並びます）">新しい順</button></h3><div class="scroll" id="pClue"></div></section>
       </div>
     </aside>
     <!-- 手掛かりの列（広い画面のとき。せまいときは左欄に戻る） -->
@@ -258,7 +267,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 
     <!-- 中央左：GM欄 -->
     <section class="col" aria-label="GM">
-      <div class="colHead"><h2>GM</h2><span class="spacer"></span><button class="gmBtn hidden" type="button" id="gmBtn" title="前回のGMの返答以降の発言とダイスを、キャラシートと一緒にGMに渡します">GMに渡す</button></div>
+      <div class="colHead"><h2>GM</h2><span class="spacer"></span><button class="gmBtn hidden" type="button" id="gmBtn" title="前回のGMの返答以降の発言とダイスを、キャラシートと一緒にGMに渡します">GMに渡す</button><div id="gmConfirm" class="gmConfirm hidden" role="alert"></div></div>
       <div class="log" id="gmLog" aria-live="polite"></div>
       <p class="hint" id="gmPendingBar" style="padding:6px 14px;border-top:1px solid var(--line)"></p>
     </section>
@@ -374,6 +383,9 @@ const norm=s=>String(s||'').normalize('NFKC').replace(/[\s・]/g,'');
 let role='guest',me={name:'',cid},code='',peer=null,alive=false;
 // 共有される状態（ホストが正本を持つ）
 let log=[],members=[],sheets={},clues=[],progress='',scene=null,board=[];
+let gmArmTimer=null;
+let clueOrder=(()=>{try{return localStorage.getItem('kurotaku.clueOrder')==='old'?'old':'new'}catch(e){return'new'}})();
+let pscene={};   // 一人にだけ出した情景（cid → {name,data}）。ないときは全員共通の情景を見る（ホストだけが持つ）
 let boardList=null;
 let ready={};        // 行動完了を押した参加者（cid → true）
 let gmCursorT=null;  // GMに最後に渡した時点（この時刻までの発言はGMに渡っている） // ホスト：見取り図欄に出す図の並び [{name,dir}]。null＝board\ の全部
@@ -501,7 +513,7 @@ function msgEl(m){
   const d=el('div','m '+m.kind+(m.cid===cid?' me':'')+(m.to?' secret':''));d.dataset.id=m.id||'';
   if(m.kind==='sys'||m.kind==='gsys'){d.textContent=(m.to?'（'+badgeText(m)+'）':'')+m.text;return d}
   if(m.kind==='check')return checkEl(m,d);
-  if(m.kind==='cshare'){d.textContent=(m.to?'（'+(m.cid===cid?whoLabel(m.to)+'へ':'あなたにだけ')+'）':'')+shareText(m);return d}
+  if(m.kind==='cshare'){d.classList.toggle('retracted',!!m.retracted);d.textContent=(m.to?'（'+(m.cid===cid?whoLabel(m.to)+'へ':'あなたにだけ')+'）':'')+shareText(m);return d}
   const who=el('div','who');
   who.append(el('span',null,m.kind==='gm'?'GM':(m.pc?m.pc+'（'+m.name+'）':m.name)),el('time',null,hhmm(m.t)));
   const bt=badgeText(m);if(bt)who.append(el('span','badge',bt));
@@ -519,7 +531,8 @@ function msgEl(m){
 }
 // GMが出した判定：対象のPLにだけ「振る」ボタンが出る
 function tgtText(q){return q.tgt!=null?'目標'+q.tgt+(q.cmp==='<='?'以下':''):''}
-function qText(q){return(q.label?q.label+'　':'')+q.n+'D'+q.s+(q.mod?(q.mod>0?'+':'')+q.mod:'')+(q.tgt!=null?'　'+tgtText(q):'　（成否なし）')}
+function qShort(q){return(q.label?q.label+' ':'')+q.n+'D'+q.s+(q.mod?(q.mod>0?'+':'')+q.mod:'')+(q.tgt!=null?' '+tgtText(q):'')}
+function qText(q){return(q.label?q.label+'　':'')+q.n+'D'+q.s+(q.mod?(q.mod>0?'+':'')+q.mod:'')+(q.tgt!=null?'　'+tgtText(q):'　（成否なし）')+(q.onOk||q.onNg?'　（続けて '+[q.onOk&&'成功なら '+qShort(q.onOk),q.onNg&&'失敗なら '+qShort(q.onNg)].filter(Boolean).join('／')+'）':'')}
 function checkEl(m,d){
   d.classList.toggle('done',!!m.done);d.classList.toggle('expired',!!m.expired);
   const who=el('div','who');who.append(el('span',null,'判定'),el('time',null,hhmm(m.t)));
@@ -568,8 +581,9 @@ function renderReady(){
   const on=!!ready[cid];const b=$('readyBtn');b.setAttribute('aria-pressed',on);b.textContent=on?'✓ 行動完了（取り消す）':'行動完了';
   const online=members.filter(p=>p.online);const n=online.filter(p=>ready[p.cid]).length;
   $('readyInfo').textContent=online.length?'完了 '+n+'／'+online.length+'人':'';
-  if(role==='host'){const all=online.length>0&&n===online.length;$('gmBtn').classList.toggle('allReady',all&&!gmBusy);if(!gmBusy)$('gmBtn').textContent=all?'GMに渡す（全員完了）':'GMに渡す'}
+  if(role==='host'){const all=online.length>0&&n===online.length;$('gmBtn').classList.toggle('allReady',all&&!gmBusy);if(all)disarmGm();if(!gmBusy&&$('gmBtn').dataset.armed!=='1')$('gmBtn').textContent=all?'GMに渡す（全員完了）':'GMに渡す'}
 }
+$('clueOrderBtn').onclick=()=>{clueOrder=clueOrder==='new'?'old':'new';try{localStorage.setItem('kurotaku.clueOrder',clueOrder)}catch(e){}renderClues()};
 $('readyBtn').onclick=()=>{const d={type:'ready',on:!ready[cid]};if(role==='host')hostAccept(cid,d);else sendToHost(d)};
 function renderMembers(){
   const ul=$('members');ul.textContent='';renderReady();
@@ -597,8 +611,8 @@ $('sayAs').addEventListener('change',buildTo);
 
 /* ===== 描画：情景・資料 ===== */
 function renderScene(){
-  const f=$('scene');f.textContent='';
-  if(scene&&safeImg(scene.data)){const i=el('img');i.src=scene.data;i.alt=scene.name;i.onclick=()=>zoom(scene.data);f.append(i,el('figcaption',null,scene.name))}
+  const f=$('scene');f.textContent='';const sc=role==='host'?sceneFor(cid):scene;
+  if(sc&&safeImg(sc.data)){const i=el('img');i.src=sc.data;i.alt=sc.name;i.onclick=()=>zoom(sc.data);f.append(i,el('figcaption',null,sc.name))}
   else f.append(el('div','empty','情景画像はまだありません'));
 }
 function renderBoard(){
@@ -607,17 +621,40 @@ function renderBoard(){
   board.forEach(b=>{if(!safeImg(b.data))return;const f=el('figure','boardItem');const i=el('img');i.src=b.data;i.alt=b.name;i.onclick=()=>zoom(b.data);f.append(i,el('figcaption',null,b.name));p.append(f)});
 }
 function renderProgress(){const p=$('pProg');p.textContent='';p.append(progress?el('div','progress',progress):el('div','emptyBox','GMが時刻や進み具合を書くと、ここに表示されます'))}
-function shareText(m){return(m.pc||m.name)+' が、手掛かり「'+m.title+'」を'+(m.to?whoLabel(m.to)+' に':'全員に')+'見せました'}
+function shareText(m){return(m.pc||m.name)+' が、手掛かり「'+m.title+'」を'+(m.to?whoLabel(m.to)+' に':'全員に')+'見せました'+(m.retracted?'（GMに渡す前に取り消し）':'')}
+// 並び順：手に入れた（公開された）時刻の新しい順が既定。見出しの横で古い順に切り替えられる
+const clueKey=c=>c.at||c.t||0;
+// まだGMに渡していない「見せた」は取り消せる（相手の欄から外れ、自分だけの手掛かりに戻る）
+function sharePending(m){return!gmBusy&&(role==='host'?pendingEntries().includes(m):(gmCursorT==null||m.t>gmCursorT))}
+function myPendingShares(id){return log.filter(m=>m.kind==='cshare'&&m.cid===cid&&m.clueId===id&&!m.retracted&&sharePending(m))}
 function renderClues(){
   const p=$('pClue');p.textContent='';
-  const list=role==='host'?clues.filter(c=>visClue(c,cid)):clues;
-  if(!list.length){p.append(el('div','emptyBox','手に入れた手掛かりは、ここに並びます'));return}
-  list.forEach(c=>{const d=el('div','clue');const h=el('h3',null,c.title);
+  const ob=$('clueOrderBtn');if(ob)ob.textContent=clueOrder==='new'?'新しい順':'古い順';
+  const raw=role==='host'?clues.filter(c=>visClue(c,cid)):clues;
+  if(!raw.length){p.append(el('div','emptyBox','手に入れた手掛かりは、ここに並びます'));return}
+  // 公開されていて、題名と文面が同じものは1つにまとめる
+  const groups=[],byKey=new Map();
+  raw.forEach((c,i)=>{
+    if(!c.to){const k=norm(c.title)+'\n'+String(c.body).trim();const g=byKey.get(k);
+      if(g){g.items.push(c);g.key=Math.min(g.key,clueKey(c));return}
+      const ng={items:[c],key:clueKey(c),i};byKey.set(k,ng);groups.push(ng);return}
+    groups.push({items:[c],key:clueKey(c),i});
+  });
+  groups.sort((a,b)=>(a.key-b.key)||(a.i-b.i));if(clueOrder==='new')groups.reverse();
+  groups.forEach(g=>{const c=g.items[0];const d=el('div','clue');const h=el('h3',null,c.title);
     if(c.to&&c.from)h.append(el('span','from',whoLabel(c.from)+'から'));
     else if(c.to)h.append(el('span','badge','あなただけ'));
-    else if(c.openedBy)h.append(el('span','from',whoLabel(c.openedBy)+'が公開'));
+    else{const by=[...new Set(g.items.map(x=>x.openedBy).filter(Boolean))];if(by.length)h.append(el('span','from',by.map(x=>whoLabel(x)).join('・')+'が公開'))}
+    if(g.key)h.append(el('time','clueT',hhmm(g.key)));
     d.append(h,el('p',null,c.body));
-    if(c.to===cid){   // 自分だけの手掛かりは、ほかの人に見せられる
+    // 自分が見せたもので、まだGMに渡していないもの → 取り消せる
+    const own=g.items.find(x=>(x.openedBy===cid||(x.to===cid&&!x.from))&&myPendingShares(x.id).length);
+    if(own){const row=el('div','share');const b=el('button','small-btn','見せたのを取り消す');b.type='button';
+      b.title='まだGMに渡していないので取り消せます。相手の手掛かり欄から外れ、あなただけの手掛かりに戻ります（相手がもう読んだ内容は消えません）';
+      b.onclick=()=>{if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='本当に取り消す';b.classList.add('primary');setTimeout(()=>{b.dataset.armed='';b.textContent='見せたのを取り消す';b.classList.remove('primary')},4000);return}
+        const d2={type:'unshareClue',id:own.id};if(role==='host')hostAccept(cid,d2);else sendToHost(d2);b.disabled=true};
+      row.append(b,el('span','small','GMに渡す前なので取り消せます'));d.append(row)}
+    if(c.to===cid&&!c.from){   // 自分だけの手掛かりは、ほかの人に見せられる
       if(Array.isArray(c.shownTo)&&c.shownTo.length)d.append(el('div','shown','見せた相手：'+c.shownTo.map(x=>whoLabel(x)).join('、')));
       const row=el('div','share');const sel=el('select');sel.setAttribute('aria-label','見せる相手');
       const o0=el('option',null,'全員に');o0.value='';sel.append(o0);
@@ -632,13 +669,24 @@ function renderClues(){
 // 自分だけの手掛かりを見せる：全員なら公開に、特定の人なら写しをその人の欄に足す。GMにも渡す
 function hostShowClue(from,id,to){
   const p=members.find(x=>x.cid===from);const c=clues.find(x=>x.id===id);
-  if(!p||!c||c.to!==from)return;
+  if(!p||!c||c.to!==from||c.from)return;
   if(to&&(to===from||!members.some(x=>x.cid===to)))return;
-  if(!to){c.to=null;c.openedBy=from}
+  const now=Date.now();
+  if(!to){c.to=null;c.openedBy=from;c.at=now}
   else{if(clues.some(x=>x.srcId===c.id&&x.to===to))return;
-    clues.push({id:uid(),title:c.title,body:c.body,to,from,srcId:c.id});c.shownTo=(c.shownTo||[]).concat(to)}
-  saveRoom();broadcastClues();
-  hostPush({kind:'cshare',cid:from,name:p.name,pc:pcName(from),title:c.title,to:to||null});
+    clues.push({id:uid(),title:c.title,body:c.body,to,from,srcId:c.id,t:now});c.shownTo=(c.shownTo||[]).concat(to)}
+  saveRoom();
+  hostPush({kind:'cshare',cid:from,name:p.name,pc:pcName(from),title:c.title,to:to||null,clueId:c.id});broadcastClues();
+}
+// 「見せた」の取り消し：GMに渡す前のものだけ。自分だけの手掛かりに戻し、見せた行には（取り消し）と出す
+function hostUnshareClue(from,id){
+  if(gmBusy)return;const c=clues.find(x=>x.id===id);if(!c)return;
+  const pend=pendingEntries().filter(m=>m.kind==='cshare'&&m.cid===from&&m.clueId===id&&!m.retracted);if(!pend.length)return;
+  pend.forEach(m=>{
+    if(!m.to){if(c.to==null&&c.openedBy===from){c.to=from;delete c.openedBy;delete c.at}}
+    else{clues=clues.filter(x=>!(x.srcId===id&&x.to===m.to));c.shownTo=(c.shownTo||[]).filter(x=>x!==m.to)}
+    m.retracted=true;hostUpd(m)});
+  saveRoom();broadcastClues();updatePending();
 }
 
 /* ===== 卓設定（シナリオのGMフォルダの 卓設定.json。中継の /config から読む） ===== */
@@ -791,6 +839,12 @@ function rollDice(q){
   else if(q.tgt!=null)res=(q.cmp==='<='?total<=q.tgt:total>=q.tgt)?'ok':'ng';
   return{n:q.n,s:q.s,mod:q.mod,tgt:q.tgt,cmp:q.cmp,label:q.label,rolls,total,res};
 }
+// 「正気判定 2D6+3 目標10」の形を読む。判定名は書かれたまま残し、数字・D・＋−だけ全角も読む
+function parseCheck(text){
+  const mm=String(text).match(/^\s*(.+?)\s+([0-9０-９]{1,2})[dDＤｄ]([0-9０-９]{1,3})\s*(?:([+＋\-－−])\s*([0-9０-９]{1,3}))?(?:\s+目標(?:値)?\s*([0-9０-９]{1,3}))?\s*$/);
+  const num=x=>+String(x).normalize('NFKC');
+  return mm&&cleanRollReq({n:num(mm[2]),s:num(mm[3]),mod:mm[5]?(/[-－−]/.test(mm[4])?-num(mm[5]):num(mm[5])):0,tgt:mm[6]!=null?num(mm[6]):null,label:mm[1].trim()});
+}
 function cleanRollReq(q){
   if(!q||typeof q!=='object')return null;
   const n=Math.trunc(+q.n),s=Math.trunc(+q.s),mod=Math.trunc(+q.mod)||0;
@@ -829,20 +883,22 @@ $('sayForm').addEventListener('submit',e=>{
 
 /* ===== ホスト ===== */
 function roomKey(){return'kurotaku.room.'+code}
-function saveRoom(){store.set(roomKey(),{log,sheets,clues,progress,scene:scene?{name:scene.name}:null,gmCursor,gmCursorT,notes,banned,boardList,cfg,gmFeedback})}
+function saveRoom(){const ps={};for(const k in pscene)ps[k]=pscene[k].name;store.set(roomKey(),{log,sheets,clues,progress,scene:scene?{name:scene.name}:null,pscene:ps,gmCursor,gmCursorT,notes,banned,boardList,cfg,gmFeedback})}
 function startHost(){
   const r=store.get(roomKey())||{};
   log=Array.isArray(r.log)?r.log:[];sheets={};if(r.sheets&&typeof r.sheets==='object')for(const k in r.sheets){const s=cleanSheet(r.sheets[k]);if(s)sheets[k]=s}
   clues=Array.isArray(r.clues)?r.clues:[];progress=typeof r.progress==='string'?r.progress:'';
   gmCursor=typeof r.gmCursor==='string'?r.gmCursor:null;notes=Array.isArray(r.notes)?r.notes:[];banned=r.banned&&typeof r.banned==='object'?r.banned:{};renderBanned();boardList=Array.isArray(r.boardList)?r.boardList.filter(x=>x&&typeof x.name==='string'&&(x.dir==='board'||x.dir==='maps')):null;if(r.cfg&&typeof r.cfg==='object')cfg={...DEFAULT_CFG,...r.cfg};gmFeedback=Array.isArray(r.gmFeedback)?r.gmFeedback:[];gmCursorT=typeof r.gmCursorT==='number'?r.gmCursorT:(()=>{const m=gmCursor&&log.find(x=>x.id===gmCursor);return m?m.t:null})();
-  scene=null;board=[];pendingSceneName=r.scene&&r.scene.name||null;
+  scene=null;pscene={};board=[];pendingSceneName=r.scene&&r.scene.name||null;pendingPScene=r.pscene&&typeof r.pscene==='object'?r.pscene:null;
   members=[{cid,name:me.name,role:'host',online:true}];
   const gs=store.get('kurotaku.gm')||{};if(gs.url)$('gmUrl').value=gs.url;if(gs.token)$('gmToken').value=gs.token;
   renderAll();updatePending();
   alive=true;openHostPeer(0);
   if(gs.token)setTimeout(()=>pingRelay(true),300);
 }
-let pendingSceneName=null;
+let pendingSceneName=null,pendingPScene=null;
+const sceneFor=v=>pscene[v]||scene;
+function sendScenes(){conns.forEach((ent,k)=>safeSend(ent.conn,{type:'scene',scene:sceneFor(k)}))}
 function openHostPeer(tries){
   status('卓を立てています…');
   const P=window.Peer||window.peerjs.Peer;
@@ -861,7 +917,7 @@ function openHostPeer(tries){
     console.warn('peer error',e.type);
   });
 }
-function viewFor(v){return{log:log.filter(m=>vis(m,v)),members:pubMembers(),sheets,clues:clues.filter(c=>visClue(c,v)),progress,scene,board,busy:gmBusy,cfg,ready,cursorT:gmCursorT}}
+function viewFor(v){return{log:log.filter(m=>vis(m,v)),members:pubMembers(),sheets,clues:clues.filter(c=>visClue(c,v)),progress,scene:sceneFor(v),board,busy:gmBusy,cfg,ready,cursorT:gmCursorT}}
 function hostBind(c){
   let who=null;
   c.on('data',d=>{
@@ -895,6 +951,7 @@ function hostAccept(from,d){
   const p=members.find(x=>x.cid===from);if(!p)return;
   if(d.type==='sheet'){if(limited(from,'s',25))return;hostSetSheet(from,d.sheet);return}
   if(d.type==='ready'){if(limited(from,'y',8))return;if(d.on)ready[from]=true;else delete ready[from];broadcastReady();return}
+  if(d.type==='unshareClue'){if(limited(from,'c',6))return;hostUnshareClue(from,String(d.id||''));return}
   if(d.type==='showClue'){if(limited(from,'c',6))return;hostShowClue(from,String(d.id||''),d.to==null||d.to===''?null:String(d.to));return}
   if(d.type==='resync'){if(limited(from,'r',3))return;const ent=conns.get(from);if(ent)safeSend(ent.conn,{type:'welcome',...viewFor(from)});return}
   if(limited(from,'m',10))return;
@@ -916,8 +973,12 @@ function hostAccept(from,d){
       if(used.size){saveRoom();sendAll({type:'sheets',sheets});renderSheets()}}
     if(chk&&d.extra&&typeof d.extra==='object'){const v=Math.trunc(+d.extra.v);const why=String(d.extra.why||'').trim().slice(0,20);
       if(v&&Math.abs(v)<=10&&why){q.mod+=v;q.label=(q.label?q.label:'')+'（'+why+(v>0?'＋':'−')+Math.abs(v)+'）'}}
+    const onOk=q.onOk,onNg=q.onNg;delete q.onOk;delete q.onNg;
     if(chk){chk.done=true;hostUpd(chk)}
-    hostPush({kind:'dice',cid:from,name:p.name,pc:pcName(from),dice:rollDice(q),check:chk?chk.id:null});
+    const dice=rollDice(q);
+    hostPush({kind:'dice',cid:from,name:p.name,pc:pcName(from),dice,check:chk?chk.id:null});
+    const next=chk&&((dice.res==='ok'||dice.res==='crit')?onOk:(dice.res==='ng'||dice.res==='fumble')?onNg:null);
+    if(next){const nq=cleanRollReq(next);if(nq)hostPush({kind:'check',cid:'GM',name:'GM',to:from,q:nq,after:chk.id})}
   }
 }
 function hostSetSheet(target,s){
@@ -940,7 +1001,7 @@ function renderBanned(){
     r.append(b);box.append(r)});
 }
 function broadcastReady(){renderMembers();sendAll({type:'ready',ready})}
-function broadcastCursor(){renderLogs();sendAll({type:'cursor',t:gmCursorT})}
+function broadcastCursor(){renderLogs();renderClues();sendAll({type:'cursor',t:gmCursorT})}
 function hostDeleteSheet(target){
   if(!sheets[target])return;const name=sheets[target].pc||memberName(target);
   delete sheets[target];clearTimeout(sheetTimers[target]);if(editTarget===target){editTarget=null;$('editorWrap').textContent=''}
@@ -965,7 +1026,7 @@ function safeSend(c,obj){try{if(c&&c.open){c.send(obj);return true}}catch(e){}re
 function addNote(text){notes.push({t:Date.now(),text:text.slice(0,2000)});saveRoom();$('plLog').append(noteEl(notes[notes.length-1]));$('plLog').scrollTop=$('plLog').scrollHeight;updatePending()}
 function pendingEntries(){
   const i=gmCursor?log.findIndex(m=>m.id===gmCursor):-1;
-  return log.slice(i+1).filter(m=>(m.kind==='say'&&(!m.to||m.to==='gm'))||m.kind==='dice'||(m.kind==='gm'&&m.byHand)||m.kind==='cshare');
+  return log.slice(i+1).filter(m=>(m.kind==='say'&&(!m.to||m.to==='gm'))||m.kind==='dice'||(m.kind==='gm'&&m.byHand)||(m.kind==='cshare'&&!m.retracted));
 }
 function updatePending(){
   if(role!=='host'){$('gmPendingBar').textContent='';return}
@@ -1015,10 +1076,10 @@ async function gmFetch(p,opt={}){
   if(!r.ok)throw new Error((j&&j.error)||('エラー '+r.status));
   return j||{};
 }
-function setBusy(on){gmBusy=on;$('gmBtn').disabled=on;$('gmBtn').textContent=on?'GMが考え中…':'GMに渡す';if(!on)renderReady();else $('gmBtn').classList.remove('allReady');$('gmBusy').classList.toggle('hidden',!on);sendAll({type:'busy',on})}
+function setBusy(on){gmBusy=on;renderClues();$('gmBtn').disabled=on;$('gmBtn').textContent=on?'GMが考え中…':'GMに渡す';if(!on)renderReady();else $('gmBtn').classList.remove('allReady');$('gmBusy').classList.toggle('hidden',!on);sendAll({type:'busy',on})}
 async function pingRelay(quiet){
   if(!quiet)gmStat('確認しています…');
-  try{const j=await gmFetch('/ping');gmStat((j.gmFolder?'「'+j.gmFolder+'」の中継に':'')+(j.busy?'つながっています（GMは返答中）':'つながっています'),true);await loadConfig();await loadBoard();if(pendingSceneName&&!scene){const n=pendingSceneName;pendingSceneName=null;await showScene(n,true)}}
+  try{const j=await gmFetch('/ping');gmStat((j.gmFolder?'「'+j.gmFolder+'」の中継に':'')+(j.busy?'つながっています（GMは返答中）':'つながっています'),true);await loadConfig();await loadBoard();if(pendingSceneName&&!scene){const n=pendingSceneName;pendingSceneName=null;await showScene(n,true)}if(pendingPScene){const ps=pendingPScene;pendingPScene=null;for(const k in ps)if(typeof ps[k]==='string')await showScene(ps[k],true,k)}}
   catch(e){if(!quiet)gmStat(e.message,false)}
 }
 $('gmPing').onclick=()=>pingRelay(false);
@@ -1058,8 +1119,11 @@ async function showMap(name){
   renderBoard();sendAll({type:'board',items:board});
   hostPush({kind:'gsys',text:'見取り図：「'+name+'」'+(old&&old!==name?'に差し替えました':'を出しました')});return true;
 }
-async function showScene(name,quiet){
-  try{scene={name,data:await fetchAsset('images',name)};saveRoom();renderScene();sendAll({type:'scene',scene});return true}
+// who を渡すと、その人にだけ出す。渡さなければ全員の情景（一人ずつの情景はそこで終わり）
+async function showScene(name,quiet,who){
+  try{const sc={name,data:await fetchAsset('images',name)};
+    if(who)pscene[who]=sc;else{scene=sc;pscene={}}
+    saveRoom();renderScene();sendScenes();return true}
   catch(e){if(!quiet)hostWarn('情景画像「'+name+'」を表示できませんでした（'+e.message+'）');return false}
 }
 let warnList=[];
@@ -1145,11 +1209,12 @@ async function applyGM(text){
       let rest=m[1],targets=[];
       if(/^全員(\s|$)/.test(rest)){targets=members.filter(x=>sheets[x.cid]).map(x=>x.cid);rest=rest.slice(2)}
       else{const T=takeName(rest);if(T){targets=[T.cid];rest=T.after}}
-      // 判定名は書かれたまま残し、数字・D・＋−だけ全角も読む
-      const mm=rest.match(/^\s*(.+?)\s+([0-9０-９]{1,2})[dDＤｄ]([0-9０-９]{1,3})\s*(?:([+＋\-－−])\s*([0-9０-９]{1,3}))?(?:\s+目標(?:値)?\s*([0-9０-９]{1,3}))?\s*$/);
-      const num=x=>+String(x).normalize('NFKC');
-      const q=mm&&cleanRollReq({n:num(mm[2]),s:num(mm[3]),mod:mm[5]?(/[-－−]/.test(mm[4])?-num(mm[5]):num(mm[5])):0,tgt:mm[6]!=null?num(mm[6]):null,label:mm[1].trim()});
-      if(!q||!targets.length){hostWarn('操作「判定」を反映できませんでした：'+line);gmFb('「'+line+'」：PC名か、ダイスの書き方が分からず、ボタンを出していない');continue}
+      // 「成功なら …」「失敗なら …」が続いていれば、結果に合うほうの次の判定を自動で出す
+      const parts=rest.split(/\s+(?=(?:成功なら|失敗なら)\s)/);
+      const q=parseCheck(parts[0]);let bad=!q;
+      parts.slice(1).forEach(pt=>{const mm=pt.match(/^(成功なら|失敗なら)\s+([\s\S]+)$/);const f=mm&&parseCheck(mm[2]);
+        if(!f||!q||q.tgt==null){bad=true;return}q[mm[1]==='成功なら'?'onOk':'onNg']=f});
+      if(bad||!targets.length){hostWarn('操作「判定」を反映できませんでした：'+line);gmFb('「'+line+'」：PC名か、ダイスの書き方が分からず、ボタンを出していない');continue}
       targets.forEach(t=>hostPush({kind:'check',cid:'GM',name:'GM',to:t,q:{...q}}));
     }
     else if((m=line.match(/^図面\s+消す\s+(.+)$/))){const n=m[1].trim();const L=curBoardList();const i=L.findIndex(x=>x.name===n);if(i<0){hostWarn('消す図面「'+n+'」が見取り図欄にありません');continue}L.splice(i,1);boardList=L;saveRoom();board=board.filter(b=>b.name!==n);renderBoard();sendAll({type:'board',items:board});hostPush({kind:'gsys',text:'見取り図：「'+n+'」を下げました'})}
@@ -1164,18 +1229,33 @@ async function applyGM(text){
         hostWarn('「だけ」付きの手掛かりを、宛先が分からないため出していません（中身は表示していません）。次に「GMに渡す」を押すと、GMにもそのことが伝わります');
         gmFb('手掛かり「'+head+'」：「〇〇だけ」の宛先が参加者のだれか一人に決まらなかったので、誰にも表示していない');continue}
       if(!head||!body){hostWarn('手掛かりの操作を読めませんでした（名前か文面が空）');gmFb('手掛かりの操作：名前か文面が空なので、反映していない');continue}
-      clues.push({id:uid(),title:head.slice(0,60),body:body.slice(0,2000),to});clueChanged=true;
+      clues.push({id:uid(),title:head.slice(0,60),body:body.slice(0,2000),to,t:Date.now()});clueChanged=true;
       hostPush({kind:'gsys',text:'手掛かり「'+head.slice(0,60)+'」が一覧に追加されました',to});
     }
-    else if((m=line.match(/^画像\s+(.+)$/))){const n=m[1].trim();if(/^(消す|なし)$/.test(n)){scene=null;saveRoom();renderScene();sendAll({type:'scene',scene:null});hostPush({kind:'gsys',text:'情景：（消しました）'})}else if(await showScene(n))hostPush({kind:'gsys',text:'情景：'+n})}
+    else if((m=line.match(/^画像\s+(.+)$/))){let n=m[1].trim(),who=null;
+      const T=takeName(n);
+      if(T&&/^\s*だけ(\s|$)/.test(T.after)){who=T.cid;n=T.after.replace(/^\s*だけ\s*/,'').trim()}
+      else if(/^\S+だけ\s/.test(n)){hostWarn('「だけ」付きの情景画像を、宛先が分からないため出していません');gmFb('「'+line.slice(0,60)+'」：「〇〇だけ」の宛先が参加者のだれか一人に決まらなかったので、誰にも表示していない');continue}
+      if(!n){hostWarn('操作「画像」を読めませんでした：'+line);continue}
+      if(/^(消す|なし)$/.test(n)){if(who){delete pscene[who]}else{scene=null;pscene={}}saveRoom();renderScene();sendScenes();hostPush({kind:'gsys',text:who?'情景：（あなたの情景を消しました）':'情景：（消しました）',to:who})}
+      else if(await showScene(n,false,who))hostPush({kind:'gsys',text:'情景：'+n,to:who})}
     else{hostWarn('GMの操作を1行、読めませんでした（中身は表示していません）');gmFb('操作「'+line.slice(0,60)+'」：書き方が分からず、反映していない')}
   }
   if(sheetChanged){saveRoom();sendAll({type:'sheets',sheets});renderSheets()}
   if(clueChanged){saveRoom();broadcastClues()}
   const h=$('gmHostMsg');h.classList.toggle('hidden',!P.host);h.textContent=P.host?'GMからホストへ：\n'+P.host:'';
 }
+// 行動完了がそろっていないときは、1回目は確かめるだけ（4秒以内にもう一度押すと渡す）
+function notReady(){return members.filter(p=>p.online&&!ready[p.cid])}
+function disarmGm(){const b=$('gmBtn');if(b.dataset.armed!=='1')return;b.dataset.armed='';clearTimeout(gmArmTimer);b.classList.remove('armed');$('gmConfirm').classList.add('hidden');if(!gmBusy)renderReady()}
 $('gmBtn').onclick=async()=>{
   if(gmBusy)return;
+  const b=$('gmBtn'),nr=notReady();
+  if(nr.length&&b.dataset.armed!=='1'){
+    b.dataset.armed='1';b.classList.add('armed');b.textContent='それでも渡す';
+    const c=$('gmConfirm');c.textContent='まだ行動完了していない人がいます：'+nr.map(p=>whoLabel(p.cid)).join('、')+'。もう一度押すとGMに渡します';c.classList.remove('hidden');
+    clearTimeout(gmArmTimer);gmArmTimer=setTimeout(disarmGm,6000);return}
+  b.dataset.armed='';clearTimeout(gmArmTimer);b.classList.remove('armed');$('gmConfirm').classList.add('hidden');
   const ents=pendingEntries();const lastId=log.length?log[log.length-1].id:null;const lastT=log.length?log[log.length-1].t:Date.now();const sentNotes=notes.length;const sentFb=gmFeedback.length;
   const events=buildEvents(ents);
   setBusy(true);clearWarn();gmStat('GMに渡しました。返答を待っています…');
@@ -1210,7 +1290,7 @@ $('resetBtn').onclick=e=>{
   const b=e.currentTarget;
   if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='本当に消す';setTimeout(()=>{b.dataset.armed='';b.textContent='ログと資料を消す'},4000);return}
   b.dataset.armed='';b.textContent='ログと資料を消す';
-  log=[];clues=[];progress='';scene=null;gmCursor=null;gmCursorT=null;notes=[];boardList=null;ready={};saveRoom();renderAll();loadBoard().catch(()=>{});
+  log=[];clues=[];progress='';scene=null;pscene={};gmCursor=null;gmCursorT=null;notes=[];boardList=null;ready={};saveRoom();renderAll();loadBoard().catch(()=>{});
   conns.forEach((ent,k)=>safeSend(ent.conn,{type:'welcome',...viewFor(k)}));
   hostPush({kind:'sys',text:'ログと資料が消去されました'});
 };
@@ -1254,19 +1334,19 @@ function connectHost(){
         clues=Array.isArray(d.clues)?d.clues:[];progress=String(d.progress||'');scene=d.scene&&safeImg(d.scene.data)?d.scene:null;board=Array.isArray(d.board)?d.board:[];
         cfg=d.cfg&&typeof d.cfg==='object'?{...DEFAULT_CFG,...d.cfg}:{...DEFAULT_CFG};renderTplButtons();
         ready=d.ready&&typeof d.ready==='object'?d.ready:{};gmCursorT=typeof d.cursorT==='number'?d.cursorT:null;
-        clearTimeout(resyncT);renderAll();status(resyncing?'同期し直しました（'+hhmm(Date.now())+'）':'卓に接続しました');resyncing=false;$('gmBusy').classList.toggle('hidden',!d.busy);return;
+        clearTimeout(resyncT);gmBusy=!!d.busy;renderAll();status(resyncing?'同期し直しました（'+hhmm(Date.now())+'）':'卓に接続しました');resyncing=false;$('gmBusy').classList.toggle('hidden',!d.busy);return;
       case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m)}return;
       case'upd':if(d.m&&d.m.id)replaceMsg(d.m);return;
       case'config':applyCfg(d.cfg);return;
       case'ready':ready=d.ready&&typeof d.ready==='object'?d.ready:{};renderMembers();return;
-      case'cursor':gmCursorT=typeof d.t==='number'?d.t:null;renderLogs();return;
+      case'cursor':gmCursorT=typeof d.t==='number'?d.t:null;renderLogs();renderClues();return;
       case'members':if(Array.isArray(d.members)){members=d.members;renderMembers();renderClues();renderSheets();buildTo()}return;
       case'sheets':if(d.sheets){sheets={};for(const k in d.sheets){const s=cleanSheet(d.sheets[k]);if(s)sheets[k]=s}if(!sheets[cid])clearTimeout(sheetTimers[cid]);renderSheets();renderMembers();buildTo()}return;
       case'clues':if(Array.isArray(d.clues)){clues=d.clues;renderClues()}return;
       case'progress':progress=String(d.text||'');renderProgress();return;
       case'scene':scene=d.scene&&safeImg(d.scene.data)?d.scene:null;renderScene();return;
       case'board':board=Array.isArray(d.items)?d.items:[];renderBoard();return;
-      case'busy':$('gmBusy').classList.toggle('hidden',!d.on);return;
+      case'busy':gmBusy=!!d.on;$('gmBusy').classList.toggle('hidden',!d.on);renderClues();return;
     }
   });
   c.on('close',()=>{clearInterval(watch);clearTimeout(openT);if(hostConn===c){hostConn=null;if(alive){status('卓との接続が切れました。再接続しています…',true);retryLater()}}});
