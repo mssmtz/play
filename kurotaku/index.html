@@ -684,6 +684,16 @@ function vvNarrate(body){
     }
   }).catch(()=>{});
 }
+// 試しに読む（その人にだけ）
+const VV_TEST='GMの描写です。十一月の夕方、町の空は橙から薄紫へ沈んでいく。';
+function vvTestFor(to){
+  const sel=vvSel;if(!sel||!vvCredit)return;
+  const parts=ttsChunks(VV_TEST);
+  vvChain=vvChain.then(async()=>{for(let i=0;i<parts.length;i++){
+    let a;try{a=(await gmFetch('/tts',{method:'POST',body:JSON.stringify({text:parts[i],speaker:sel.id})})).audio}catch(e){return}
+    const d={type:'tts',audio:a,lead:i===0};
+    if(to===cid)audioPush(d);else{const ent=conns.get(to);if(ent)safeSend(ent.conn,d)}}}).catch(()=>{});
+}
 function ttsFallback(texts){if(!tts.on||!ttsOK)return;const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];texts.forEach(t=>speechSynthesis.speak(ttsUtter(t,v)))}
 // 再生の順番待ち
 const audioQ=[];let audioCur=null,audioWait=null,audioBlocked=false;   // audioBlocked：ブラウザに再生を止められ、押されるのを待っている
@@ -736,7 +746,10 @@ $('ttsBtn').onclick=()=>{tts.on=!tts.on;if(!tts.on)ttsCancel();else if(!vvCredit
 $('ttsGear').onclick=()=>{const p=$('ttsPanel');const open=p.classList.toggle('hidden')===false;$('ttsGear').setAttribute('aria-expanded',open);if(open)fillVoices()};
 $('ttsVoice').onchange=e=>{tts.voice=e.target.value;ttsSave()};
 $('ttsRate').oninput=e=>{tts.rate=+e.target.value;ttsSave();renderTts();if(audioCur)audioCur.playbackRate=tts.rate};
-$('ttsTest').onclick=()=>{ttsCancel();if(vvCredit){$('vvTestNote')?.remove();const n=el('p','small','VOICEVOXの声は、次のGMの描写で届きます');n.id='vvTestNote';$('ttsPanel').append(n);return}ttsSay(ttsClean('十一月の夕方。町の空は、山の端から順に、**橙から薄紫**へ沈んでいく。\n【判定】心＋観察 目標値8'),true)};
+$('ttsTest').onclick=()=>{ttsCancel();if(vvCredit){   // VOICEVOX のときは、ホストに頼んで自分にだけ試しの音声を送ってもらう
+    if(!tts.on){tts.on=true;renderTts()}
+    if(role==='host')vvTestFor(cid);else sendToHost({type:'ttsTest'});return}
+  ttsSay(ttsClean('十一月の夕方。町の空は、山の端から順に、**橙から薄紫**へ沈んでいく。\n【判定】心＋観察 目標値8'),true)};
 $('ttsStop').onclick=ttsCancel;
 document.addEventListener('click',e=>{const p=$('ttsPanel');if(!p.classList.contains('hidden')&&!p.contains(e.target)&&e.target!==$('ttsGear')){p.classList.add('hidden');$('ttsGear').setAttribute('aria-expanded','false')}});
 
@@ -1082,6 +1095,7 @@ function hostAccept(from,d){
   const p=members.find(x=>x.cid===from);if(!p)return;
   if(d.type==='sheet'){if(limited(from,'s',25))return;hostSetSheet(from,d.sheet);return}
   if(d.type==='ready'){if(limited(from,'y',8))return;if(d.on)ready[from]=true;else delete ready[from];broadcastReady();return}
+  if(d.type==='ttsTest'){if(limited(from,'t',2))return;vvTestFor(from);return}
   if(d.type==='unshareClue'){if(limited(from,'c',6))return;hostUnshareClue(from,String(d.id||''));return}
   if(d.type==='showClue'){if(limited(from,'c',6))return;hostShowClue(from,String(d.id||''),d.to==null||d.to===''?null:String(d.to));return}
   if(d.type==='resync'){if(limited(from,'r',3))return;const ent=conns.get(from);if(ent)safeSend(ent.conn,{type:'welcome',...viewFor(from)});return}
