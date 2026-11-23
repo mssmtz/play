@@ -121,6 +121,8 @@ header h1{font-size:16px;margin:0}
 .ttsPanel label{font-size:12px;color:var(--mute);margin-top:4px}
 .ttsPanel .ttsRow{display:flex;gap:6px;margin-top:6px}
 .ttsPanel .small{margin:6px 0 0;line-height:1.6}
+.readBtn{min-height:0;padding:0 8px;font-size:11px;line-height:20px;border-radius:999px;margin-left:auto;color:var(--gmline);border-color:var(--gmline);background:transparent}
+.readBtn.playing{background:var(--gmline);color:#fff}
 .vvBox{display:grid;gap:6px}.vvBox .small{margin:0}
 .vvCredit{font-size:12px;color:var(--gmline);font-weight:600}
 .ttsUnlock{position:absolute;right:14px;top:100%;margin-top:6px;z-index:3;background:var(--gmline);border-color:var(--gmline);color:#fff;font-weight:700;border-radius:999px;box-shadow:0 4px 10px rgba(0,0,0,.2)}
@@ -543,6 +545,7 @@ function msgEl(m){
   who.append(el('span',null,m.kind==='gm'?'GM':(m.pc?m.pc+'（'+m.name+'）':m.name)),el('time',null,hhmm(m.t)));
   const bt=badgeText(m);if(bt)who.append(el('span','badge',bt));
   if(passedToGM(m)&&(gmCursorT==null||m.t>gmCursorT)){d.classList.add('pending');who.append(el('span','pendTag','GM未送信'))}
+  if(m.kind==='gm'&&!m.to&&m.id){const pb=el('button','readBtn','▶ 読む');pb.type='button';pb.title='この描写を、あなたのブラウザでだけ読み上げます（もう一度押すと止めます）';pb.onclick=()=>readOne(m,pb);who.append(pb)}
   d.append(who);
   const b=el('div','body');
   if(m.kind==='dice'){
@@ -664,7 +667,7 @@ function ttsSay(text,lead){
 function speakMsg(m){
   if(m.kind!=='gm'||m.to)return;
   const body=ttsClean(m.text);if(!body)return;
-  if(vvCredit){if(role==='host')vvNarrate(body);return}   // VOICEVOX のときは、ホストが作った音声が届く
+  if(vvCredit){if(role==='host')vvNarrate(body,m.id);return}   // VOICEVOX のときは、ホストが作った音声が届く
   if(tts.on&&ttsOK)ttsSay(body,true);
 }
 /* --- VOICEVOX：ホストが中継から音声をもらい、全員に配る。各自は届いた順に流す --- */
@@ -672,18 +675,52 @@ let vvCredit=null;            // 「VOICEVOX:青山龍星」など。null なら
 let vvSel=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.vv')||'null');return r&&Number.isInteger(r.id)?r:null}catch(e){return null}})();
 let vvChain=Promise.resolve();
 function vvSetMode(credit){vvCredit=credit||null;renderTts();if(role==='host')sendAll({type:'ttsMode',credit:vvCredit})}
-function vvNarrate(body){
+// ホストが作った音声は、描写ごとに少しだけ覚えておく（「▶ 読む」の聞き直しをすぐ流すため）
+const vvCache=new Map();   // `${声}:${描写のid}` → [音声…]（決まり文句は含まない）
+function vvCachePut(k,arr){vvCache.set(k,arr);while(vvCache.size>12)vvCache.delete(vvCache.keys().next().value)}
+let vvLeadAudio=null;      // 決まり文句の音声（声ごと）
+async function vvAudio(text,sel){const a=(await gmFetch('/tts',{method:'POST',body:JSON.stringify({text,speaker:sel.id})})).audio;if(typeof a!=='string'||!a.startsWith('data:audio/'))throw new Error('音声を受け取れませんでした');return a}
+function vvNarrate(body,mid){
   const sel=vvSel;if(!sel)return;
-  const parts=[TTS_LEAD,...ttsChunks(body)];
+  const parts=ttsChunks(body);const got=[];
   vvChain=vvChain.then(async()=>{
+    try{if(!vvLeadAudio||vvLeadAudio.id!==sel.id)vvLeadAudio={id:sel.id,a:await vvAudio(TTS_LEAD,sel)};
+      const d={type:'tts',audio:vvLeadAudio.a,lead:true};sendAll(d);audioPush(d)}
+    catch(e){hostWarn('読み上げの音声を作れませんでした（'+e.message+'）。各自のブラウザの声で読みます');sendAll({type:'ttsText',texts:parts});ttsFallback(parts);return}
     for(let i=0;i<parts.length;i++){
-      let a;try{a=(await gmFetch('/tts',{method:'POST',body:JSON.stringify({text:parts[i],speaker:sel.id})})).audio}
-      catch(e){hostWarn('読み上げの音声を作れませんでした（'+e.message+'）。残りは各自のブラウザの声で読みます');const rest=parts.slice(Math.max(1,i));sendAll({type:'ttsText',texts:rest});ttsFallback(rest);return}
-      if(typeof a!=='string'||!a.startsWith('data:audio/'))return;
-      const d={type:'tts',audio:a,lead:i===0};sendAll(d);audioPush(d);
+      let a;try{a=await vvAudio(parts[i],sel)}
+      catch(e){hostWarn('読み上げの音声を作れませんでした（'+e.message+'）。残りは各自のブラウザの声で読みます');const rest=parts.slice(i);sendAll({type:'ttsText',texts:rest});ttsFallback(rest);return}
+      got.push(a);const d={type:'tts',audio:a};sendAll(d);audioPush(d);
     }
+    if(mid)vvCachePut(sel.id+':'+mid,got);
   }).catch(()=>{});
 }
+// 「▶ 読む」：その描写を、頼んだ人にだけ（決まり文句なし）
+function vvReadFor(to,mid){
+  const sel=vvSel;if(!sel||!vvCredit)return;
+  const m=log.find(x=>x.id===mid&&x.kind==='gm'&&!x.to);if(!m)return;
+  const send=d=>{if(to===cid)hostLocal(d);else{const ent=conns.get(to);if(ent)safeSend(ent.conn,d)}};
+  const deliver=(a,last)=>send({type:'tts',audio:a,manual:true,last});
+  const hit=vvCache.get(sel.id+':'+mid);
+  if(hit&&hit.length){hit.forEach((a,i)=>deliver(a,i===hit.length-1));return}
+  const parts=ttsChunks(ttsClean(m.text));const got=[];
+  vvChain=vvChain.then(async()=>{for(let i=0;i<parts.length;i++){let a;try{a=await vvAudio(parts[i],sel)}catch(e){send({type:'ttsReadText',texts:parts.slice(i)});return}got.push(a);deliver(a,i===parts.length-1)}vvCachePut(sel.id+':'+mid,got)}).catch(()=>{});
+}
+function hostLocal(d){if(d.type==='tts')audioPush(d);else if(d.type==='ttsReadText')readTexts(d.texts)}
+// 音声を作れなかったときの「▶ 読む」は、自分のブラウザの声で読む
+function readTexts(texts){if(!ttsOK||!Array.isArray(texts)||!texts.length){readDone();return}const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];
+  texts.slice(0,60).forEach((t,i,a)=>{const u=ttsUtter(String(t).slice(0,500),v);if(i===a.length-1)u.onend=readDone;speechSynthesis.speak(u)})}
+let readingBtn=null;
+function readOne(m,btn){
+  const playing=readingBtn===btn;ttsCancel();if(readingBtn){readingBtn.classList.remove('playing');readingBtn.textContent='▶ 読む';readingBtn=null}
+  if(playing)return;   // 読んでいる最中にもう一度押したら止めるだけ
+  readingBtn=btn;btn.classList.add('playing');btn.textContent='■ 止める';
+  if(vvCredit){if(role==='host')vvReadFor(cid,m.id);else sendToHost({type:'ttsMsg',id:m.id});return}
+  if(!ttsOK){readDone();return}
+  const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];const cs=ttsChunks(ttsClean(m.text));
+  cs.forEach((t,i)=>{const u=ttsUtter(t,v);if(i===cs.length-1)u.onend=readDone;speechSynthesis.speak(u)});
+}
+function readDone(){if(readingBtn){readingBtn.classList.remove('playing');readingBtn.textContent='▶ 読む';readingBtn=null}}
 // 試しに読む（その人にだけ）
 const VV_TEST='GMの描写です。十一月の夕方、町の空は橙から薄紫へ沈んでいく。';
 function vvTestFor(to){
@@ -696,16 +733,16 @@ function vvTestFor(to){
 }
 function ttsFallback(texts){if(!tts.on||!ttsOK)return;const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];texts.forEach(t=>speechSynthesis.speak(ttsUtter(t,v)))}
 // 再生の順番待ち
-const audioQ=[];let audioCur=null,audioWait=null,audioBlocked=false;   // audioBlocked：ブラウザに再生を止められ、押されるのを待っている
-function audioPush(d){if(!tts.on)return;if(typeof d.audio!=='string'||!/^data:audio\/(wav|x-wav|mpeg|ogg);base64,/.test(d.audio))return;audioQ.push(d);if(!audioCur&&!audioWait&&!audioBlocked)audioNext()}
+const audioQ=[];let audioCur=null,audioWait=null,audioBlocked=false,audioMore=false;   // audioMore：「▶ 読む」の続きがまだ届く   // audioBlocked：ブラウザに再生を止められ、押されるのを待っている
+function audioPush(d){if(!tts.on&&!d.manual)return;if(d.manual)audioMore=!d.last;if(typeof d.audio!=='string'||!/^data:audio\/(wav|x-wav|mpeg|ogg);base64,/.test(d.audio))return;audioQ.push(d);if(!audioCur&&!audioWait&&!audioBlocked)audioNext()}
 function audioNext(){
-  const d=audioQ.shift();if(!d){audioCur=null;return}
+  const d=audioQ.shift();if(!d){audioCur=null;if(!audioMore)readDone();return}
   const a=new Audio(d.audio);a.playbackRate=tts.rate;a.volume=tts.vol;audioCur=a;
   a.onended=()=>{audioCur=null;if(d.lead){audioWait=setTimeout(()=>{audioWait=null;audioNext()},600)}else audioNext()};
   a.onerror=()=>{audioCur=null;audioNext()};
   const pr=a.play();if(pr&&pr.catch)pr.catch(e=>{if(e&&e.name==='NotAllowedError'){audioQ.unshift(d);audioCur=null;audioBlocked=true;$('ttsUnlock').classList.remove('hidden')}else{audioCur=null;audioNext()}});
 }
-function audioStop(){audioQ.length=0;audioBlocked=false;clearTimeout(audioWait);audioWait=null;if(audioCur){try{audioCur.pause()}catch(e){}audioCur=null}$('ttsUnlock').classList.add('hidden')}
+function audioStop(){audioQ.length=0;audioBlocked=false;audioMore=false;readDone();clearTimeout(audioWait);audioWait=null;if(audioCur){try{audioCur.pause()}catch(e){}audioCur=null}$('ttsUnlock').classList.add('hidden')}
 $('ttsUnlock').onclick=()=>{$('ttsUnlock').classList.add('hidden');audioBlocked=false;if(!audioCur&&!audioWait)audioNext()};
 // ホストの設定：声の一覧と選択
 function vvLabel(c,st){return c.name+(st.name&&st.name!=='ノーマル'?'（'+st.name+'）':'')}
@@ -1096,6 +1133,7 @@ function hostAccept(from,d){
   if(d.type==='sheet'){if(limited(from,'s',25))return;hostSetSheet(from,d.sheet);return}
   if(d.type==='ready'){if(limited(from,'y',8))return;if(d.on)ready[from]=true;else delete ready[from];broadcastReady();return}
   if(d.type==='ttsTest'){if(limited(from,'t',2))return;vvTestFor(from);return}
+  if(d.type==='ttsMsg'){if(limited(from,'t',4))return;vvReadFor(from,String(d.id||''));return}
   if(d.type==='unshareClue'){if(limited(from,'c',6))return;hostUnshareClue(from,String(d.id||''));return}
   if(d.type==='showClue'){if(limited(from,'c',6))return;hostShowClue(from,String(d.id||''),d.to==null||d.to===''?null:String(d.to));return}
   if(d.type==='resync'){if(limited(from,'r',3))return;const ent=conns.get(from);if(ent)safeSend(ent.conn,{type:'welcome',...viewFor(from)});return}
@@ -1493,6 +1531,7 @@ function connectHost(){
       case'board':board=Array.isArray(d.items)?d.items:[];renderBoard();return;
       case'ttsMode':vvCredit=typeof d.credit==='string'?d.credit.slice(0,60):null;renderTts();return;
       case'tts':audioPush(d);return;
+      case'ttsReadText':readTexts(d.texts);return;
       case'ttsText':if(Array.isArray(d.texts))ttsFallback(d.texts.map(t=>String(t).slice(0,500)).slice(0,60));return;
       case'busy':gmBusy=!!d.on;$('gmBusy').classList.toggle('hidden',!d.on);renderClues();return;
     }
