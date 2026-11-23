@@ -121,6 +121,9 @@ header h1{font-size:16px;margin:0}
 .ttsPanel label{font-size:12px;color:var(--mute);margin-top:4px}
 .ttsPanel .ttsRow{display:flex;gap:6px;margin-top:6px}
 .ttsPanel .small{margin:6px 0 0;line-height:1.6}
+.vvBox{display:grid;gap:6px}.vvBox .small{margin:0}
+.vvCredit{font-size:12px;color:var(--gmline);font-weight:600}
+.ttsUnlock{position:absolute;right:14px;top:100%;margin-top:6px;z-index:3;background:var(--gmline);border-color:var(--gmline);color:#fff;font-weight:700;border-radius:999px;box-shadow:0 4px 10px rgba(0,0,0,.2)}
 .gmConfirm{position:absolute;left:0;right:0;top:100%;z-index:3;box-shadow:0 4px 10px rgba(0,0,0,.15);padding:8px 14px;font-size:13px;font-weight:600;color:var(--ng);background:var(--ngbg);border-bottom:1px solid var(--line)}
 .gmBtn.allReady{box-shadow:0 0 0 3px var(--okbg),0 0 0 5px var(--ok)}
 .m.pending .body{border-style:dashed}
@@ -274,12 +277,14 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 
     <!-- 中央左：GM欄 -->
     <section class="col" aria-label="GM">
-      <div class="colHead"><h2>GM</h2><button type="button" class="ttsBtn" id="ttsBtn" aria-pressed="false" title="GMの全員への描写を、届いたときにこのブラウザで読み上げます（自分の画面だけ）">🔈 読み上げ：オフ</button><button type="button" class="ttsGear" id="ttsGear" aria-expanded="false" aria-label="読み上げの設定" title="読み上げの設定">⚙</button><span class="spacer"></span><button class="gmBtn hidden" type="button" id="gmBtn" title="前回のGMの返答以降の発言とダイスを、キャラシートと一緒にGMに渡します">GMに渡す</button><div id="gmConfirm" class="gmConfirm hidden" role="alert"></div>
+      <div class="colHead"><h2>GM</h2><button type="button" class="ttsBtn" id="ttsBtn" aria-pressed="false" title="GMの全員への描写を、届いたときにこのブラウザで読み上げます（自分の画面だけ）">🔈 読み上げ：オフ</button><button type="button" class="ttsGear" id="ttsGear" aria-expanded="false" aria-label="読み上げの設定" title="読み上げの設定">⚙</button><span class="spacer"></span><button class="gmBtn hidden" type="button" id="gmBtn" title="前回のGMの返答以降の発言とダイスを、キャラシートと一緒にGMに渡します">GMに渡す</button><div id="gmConfirm" class="gmConfirm hidden" role="alert"></div><button type="button" id="ttsUnlock" class="ttsUnlock hidden">🔊 押すと読み上げを再生</button>
         <div id="ttsPanel" class="ttsPanel hidden">
-          <label for="ttsVoice">声</label><select id="ttsVoice"></select>
+          <div id="ttsVoiceRow" style="display:grid;gap:4px"><label for="ttsVoice">声</label><select id="ttsVoice"></select></div>
+          <div id="vvCredit" class="vvCredit hidden"></div>
           <label for="ttsRate">速さ <span id="ttsRateV"></span></label><input type="range" id="ttsRate" min="0.6" max="1.8" step="0.1">
+          <label for="ttsVol">音量 <span id="ttsVolV"></span></label><input type="range" id="ttsVol" min="0" max="1" step="0.05">
           <div class="ttsRow"><button type="button" id="ttsTest" class="small-btn">試しに読む</button><button type="button" id="ttsStop" class="small-btn">止める</button></div>
-          <p class="small">読むのは、GMの全員への描写だけです（あなただけの描写や、HPの変化などの行は読みません）。設定はこのブラウザにだけ保存されます。VCのマイクが読み上げの音を拾うと二重に聞こえるので、ヘッドホンがおすすめです。</p>
+          <p class="small">ホストがVOICEVOXの声を選んでいるときは、その声が全員に届きます（声はホストが選び、速さと音量は各自）。読むのは、GMの全員への描写だけです（あなただけの描写や、HPの変化などの行は読みません）。設定はこのブラウザにだけ保存されます。VCのマイクが読み上げの音を拾うと二重に聞こえるので、ヘッドホンがおすすめです。</p>
         </div></div>
       <div class="log" id="gmLog" aria-live="polite"></div>
       <p class="hint" id="gmPendingBar" style="padding:6px 14px;border-top:1px solid var(--line)"></p>
@@ -364,6 +369,13 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
           <p class="kv" id="gmUsage"></p>
           <div id="gmHostMsg" class="hostMsg hidden"></div>
           <div id="gmWarn" class="warnMsg hidden"></div>
+        </div>
+        <h3 class="sec">読み上げの声（VOICEVOX）</h3>
+        <div class="vvBox">
+          <p class="small">このPCで VOICEVOX を起動しておくと、GMの全員への描写を、ここで選んだ声で全員に読み上げます（聞くかどうかは各自の「読み上げ」で切り替え）。使わないときは、各自のブラウザの声で読みます。</p>
+          <select id="vvVoice" aria-label="読み上げの声"><option value="">使わない（各自のブラウザの声）</option></select>
+          <div class="tools"><button type="button" id="vvLoad">声の一覧を読み込む</button><button type="button" id="vvTest">試しに読む</button></div>
+          <div class="gmStat" id="vvStat" aria-live="polite"></div>
         </div>
         <h3 class="sec">退室させた人</h3>
         <div id="bannedList"><p class="small">いません</p></div>
@@ -623,9 +635,9 @@ function buildTo(){
 $('sayAs').addEventListener('change',buildTo);
 
 /* ===== 読み上げ（各自のブラウザで。GMの全員への描写だけ） ===== */
-const TTS_DEF={on:false,voice:'',rate:1.1};
+const TTS_DEF={on:false,voice:'',rate:1.1,vol:1};
 const TTS_LEAD='GMの描写です。';   // 毎回はじめに読む決まり文句（いきなり本文が始まらないように）
-let tts=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.tts')||'{}');return{...TTS_DEF,voice:String(r.voice||''),rate:+r.rate||TTS_DEF.rate,on:false}}catch(e){return{...TTS_DEF}}})();
+let tts=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.tts')||'{}');return{...TTS_DEF,voice:String(r.voice||''),rate:+r.rate||TTS_DEF.rate,vol:r.vol!=null&&isFinite(+r.vol)?Math.min(1,Math.max(0,+r.vol)):1,on:false}}catch(e){return{...TTS_DEF}}})();
 const ttsOK=typeof speechSynthesis!=='undefined'&&typeof SpeechSynthesisUtterance!=='undefined';
 function ttsSave(){try{const {on,...rest}=tts;localStorage.setItem('kurotaku.tts',JSON.stringify(rest))}catch(e){}}
 function jaVoices(){return ttsOK?speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang)):[]}
@@ -641,8 +653,8 @@ function ttsClean(text){
     .replace(/、{2,}/g,'、').replace(/[、。]{2,}/g,'。');
 }
 function ttsChunks(text){return text.split(/(?<=[。！？!?])/).map(x=>x.trim()).filter(x=>x&&!/^[、。\s]+$/.test(x))}
-let ttsGen=0;function ttsCancel(){ttsGen++;if(ttsOK)speechSynthesis.cancel()}
-function ttsUtter(t,v){const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(v)u.voice=v;u.rate=tts.rate;return u}
+let ttsGen=0;function ttsCancel(){ttsGen++;if(ttsOK)speechSynthesis.cancel();audioStop()}
+function ttsUtter(t,v){const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(v)u.voice=v;u.rate=tts.rate;u.volume=tts.vol;return u}
 // lead を付けると、決まり文句のあと少し間を空けてから本文を読む
 function ttsSay(text,lead){
   if(!ttsOK)return;const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];
@@ -650,22 +662,81 @@ function ttsSay(text,lead){
   ttsChunks(text).forEach(t=>speechSynthesis.speak(ttsUtter(t,v)));
 }
 function speakMsg(m){
-  if(!tts.on||!ttsOK||m.kind!=='gm'||m.to)return;
+  if(m.kind!=='gm'||m.to)return;
   const body=ttsClean(m.text);if(!body)return;
-  ttsSay(body,true);
+  if(vvCredit){if(role==='host')vvNarrate(body);return}   // VOICEVOX のときは、ホストが作った音声が届く
+  if(tts.on&&ttsOK)ttsSay(body,true);
 }
+/* --- VOICEVOX：ホストが中継から音声をもらい、全員に配る。各自は届いた順に流す --- */
+let vvCredit=null;            // 「VOICEVOX:青山龍星」など。null なら使っていない（全員に配る）
+let vvSel=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.vv')||'null');return r&&Number.isInteger(r.id)?r:null}catch(e){return null}})();
+let vvChain=Promise.resolve();
+function vvSetMode(credit){vvCredit=credit||null;renderTts();if(role==='host')sendAll({type:'ttsMode',credit:vvCredit})}
+function vvNarrate(body){
+  const sel=vvSel;if(!sel)return;
+  const parts=[TTS_LEAD,...ttsChunks(body)];
+  vvChain=vvChain.then(async()=>{
+    for(let i=0;i<parts.length;i++){
+      let a;try{a=(await gmFetch('/tts',{method:'POST',body:JSON.stringify({text:parts[i],speaker:sel.id})})).audio}
+      catch(e){hostWarn('読み上げの音声を作れませんでした（'+e.message+'）。残りは各自のブラウザの声で読みます');const rest=parts.slice(Math.max(1,i));sendAll({type:'ttsText',texts:rest});ttsFallback(rest);return}
+      if(typeof a!=='string'||!a.startsWith('data:audio/'))return;
+      const d={type:'tts',audio:a,lead:i===0};sendAll(d);audioPush(d);
+    }
+  }).catch(()=>{});
+}
+function ttsFallback(texts){if(!tts.on||!ttsOK)return;const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];texts.forEach(t=>speechSynthesis.speak(ttsUtter(t,v)))}
+// 再生の順番待ち
+const audioQ=[];let audioCur=null,audioWait=null,audioBlocked=false;   // audioBlocked：ブラウザに再生を止められ、押されるのを待っている
+function audioPush(d){if(!tts.on)return;if(typeof d.audio!=='string'||!/^data:audio\/(wav|x-wav|mpeg|ogg);base64,/.test(d.audio))return;audioQ.push(d);if(!audioCur&&!audioWait&&!audioBlocked)audioNext()}
+function audioNext(){
+  const d=audioQ.shift();if(!d){audioCur=null;return}
+  const a=new Audio(d.audio);a.playbackRate=tts.rate;a.volume=tts.vol;audioCur=a;
+  a.onended=()=>{audioCur=null;if(d.lead){audioWait=setTimeout(()=>{audioWait=null;audioNext()},600)}else audioNext()};
+  a.onerror=()=>{audioCur=null;audioNext()};
+  const pr=a.play();if(pr&&pr.catch)pr.catch(e=>{if(e&&e.name==='NotAllowedError'){audioQ.unshift(d);audioCur=null;audioBlocked=true;$('ttsUnlock').classList.remove('hidden')}else{audioCur=null;audioNext()}});
+}
+function audioStop(){audioQ.length=0;audioBlocked=false;clearTimeout(audioWait);audioWait=null;if(audioCur){try{audioCur.pause()}catch(e){}audioCur=null}$('ttsUnlock').classList.add('hidden')}
+$('ttsUnlock').onclick=()=>{$('ttsUnlock').classList.add('hidden');audioBlocked=false;if(!audioCur&&!audioWait)audioNext()};
+// ホストの設定：声の一覧と選択
+function vvLabel(c,st){return c.name+(st.name&&st.name!=='ノーマル'?'（'+st.name+'）':'')}
+function fillVV(list){
+  const sel=$('vvVoice');sel.textContent='';const o0=el('option',null,'使わない（各自のブラウザの声）');o0.value='';sel.append(o0);
+  (list||[]).forEach(c=>c.styles.forEach(st=>{const o=el('option',null,vvLabel(c,st));o.value=String(st.id);o.dataset.credit='VOICEVOX:'+c.name;sel.append(o)}));
+  if(vvSel&&![...sel.options].some(o=>o.value===String(vvSel.id))){const o=el('option',null,vvSel.label+'（一覧にない）');o.value=String(vvSel.id);o.dataset.credit=vvSel.credit;sel.append(o)}
+  sel.value=vvSel?String(vvSel.id):'';
+}
+async function vvLoad(quiet){
+  try{const j=await gmFetch('/tts/speakers');fillVV(j.speakers);if(!quiet)vvStat('声の一覧を読み込みました',true);
+    vvSetMode(vvSel?vvSel.credit:null)}
+  catch(e){fillVV([]);if(!quiet||vvSel)vvStat(e.message+(vvSel?'（それまでは各自のブラウザの声で読みます）':''),false);vvSetMode(null)}
+}
+function vvStat(t,ok){const x=$('vvStat');x.textContent=t;x.className='gmStat'+(ok===true?' ok':ok===false?' ng':'')}
+$('vvLoad').onclick=()=>vvLoad(false);
+$('vvVoice').onchange=e=>{const o=e.target.selectedOptions[0];
+  vvSel=o&&o.value!==''?{id:+o.value,label:o.textContent,credit:o.dataset.credit}:null;
+  try{localStorage.setItem('kurotaku.vv',JSON.stringify(vvSel))}catch(err){}
+  vvSetMode(vvSel?vvSel.credit:null);vvStat(vvSel?'「'+vvSel.label+'」で全員に読み上げます':'各自のブラウザの声で読みます',true)};
+$('vvTest').onclick=async()=>{
+  if(!vvSel){vvStat('声を選んでください',false);return}
+  try{const j=await gmFetch('/tts',{method:'POST',body:JSON.stringify({text:'GMの描写です。十一月の夕方、町の空は橙から薄紫へ沈んでいく。',speaker:vvSel.id})});
+    const a=new Audio(j.audio);a.volume=tts.vol;a.playbackRate=tts.rate;await a.play();vvStat('ホストのPCでだけ流しました',true)}
+  catch(e){vvStat(e.message,false)}};
 function renderTts(){
   const b=$('ttsBtn');b.setAttribute('aria-pressed',tts.on);b.textContent=tts.on?'🔊 読み上げ：オン':'🔈 読み上げ：オフ';
   $('ttsRate').value=tts.rate;$('ttsRateV').textContent='×'+Number(tts.rate).toFixed(1);
+  $('ttsVol').value=tts.vol;$('ttsVolV').textContent=Math.round(tts.vol*100)+'%';
+  $('ttsVoiceRow').classList.toggle('hidden',!!vvCredit);const c=$('vvCredit');c.classList.toggle('hidden',!vvCredit);c.textContent=vvCredit?'声：'+vvCredit+'（ホストが選択）':'';
+  if(!ttsOK&&!vvCredit){b.disabled=true}else b.disabled=false;
 }
-if(!ttsOK){$('ttsBtn').disabled=true;$('ttsBtn').title='このブラウザは読み上げに対応していません';$('ttsGear').classList.add('hidden')}
+if(!ttsOK){$('ttsBtn').title='このブラウザは読み上げに対応していません（ホストがVOICEVOXを使っているときは聞けます）'}
 else{fillVoices();speechSynthesis.addEventListener?.('voiceschanged',fillVoices)}
+$('ttsVol').oninput=e=>{tts.vol=+e.target.value;ttsSave();renderTts();if(audioCur)audioCur.volume=tts.vol};
 renderTts();
-$('ttsBtn').onclick=()=>{tts.on=!tts.on;if(!tts.on)ttsCancel();else ttsSay('読み上げをオンにしました。');renderTts()};
+$('ttsBtn').onclick=()=>{tts.on=!tts.on;if(!tts.on)ttsCancel();else if(!vvCredit)ttsSay('読み上げをオンにしました。');renderTts()};
 $('ttsGear').onclick=()=>{const p=$('ttsPanel');const open=p.classList.toggle('hidden')===false;$('ttsGear').setAttribute('aria-expanded',open);if(open)fillVoices()};
 $('ttsVoice').onchange=e=>{tts.voice=e.target.value;ttsSave()};
-$('ttsRate').oninput=e=>{tts.rate=+e.target.value;ttsSave();renderTts()};
-$('ttsTest').onclick=()=>{ttsCancel();ttsSay(ttsClean('十一月の夕方。町の空は、山の端から順に、**橙から薄紫**へ沈んでいく。\n【判定】心＋観察 目標値8'),true)};
+$('ttsRate').oninput=e=>{tts.rate=+e.target.value;ttsSave();renderTts();if(audioCur)audioCur.playbackRate=tts.rate};
+$('ttsTest').onclick=()=>{ttsCancel();if(vvCredit){$('vvTestNote')?.remove();const n=el('p','small','VOICEVOXの声は、次のGMの描写で届きます');n.id='vvTestNote';$('ttsPanel').append(n);return}ttsSay(ttsClean('十一月の夕方。町の空は、山の端から順に、**橙から薄紫**へ沈んでいく。\n【判定】心＋観察 目標値8'),true)};
 $('ttsStop').onclick=ttsCancel;
 document.addEventListener('click',e=>{const p=$('ttsPanel');if(!p.classList.contains('hidden')&&!p.contains(e.target)&&e.target!==$('ttsGear')){p.classList.add('hidden');$('ttsGear').setAttribute('aria-expanded','false')}});
 
@@ -977,7 +1048,7 @@ function openHostPeer(tries){
     console.warn('peer error',e.type);
   });
 }
-function viewFor(v){return{log:log.filter(m=>vis(m,v)),members:pubMembers(),sheets,clues:clues.filter(c=>visClue(c,v)),progress,scene:sceneFor(v),board,busy:gmBusy,cfg,ready,cursorT:gmCursorT}}
+function viewFor(v){return{log:log.filter(m=>vis(m,v)),members:pubMembers(),sheets,clues:clues.filter(c=>visClue(c,v)),progress,scene:sceneFor(v),board,busy:gmBusy,cfg,ready,cursorT:gmCursorT,ttsMode:vvCredit}}
 function hostBind(c){
   let who=null;
   c.on('data',d=>{
@@ -1139,7 +1210,7 @@ async function gmFetch(p,opt={}){
 function setBusy(on){gmBusy=on;renderClues();$('gmBtn').disabled=on;$('gmBtn').textContent=on?'GMが考え中…':'GMに渡す';if(!on)renderReady();else $('gmBtn').classList.remove('allReady');$('gmBusy').classList.toggle('hidden',!on);sendAll({type:'busy',on})}
 async function pingRelay(quiet){
   if(!quiet)gmStat('確認しています…');
-  try{const j=await gmFetch('/ping');gmStat((j.gmFolder?'「'+j.gmFolder+'」の中継に':'')+(j.busy?'つながっています（GMは返答中）':'つながっています'),true);await loadConfig();await loadBoard();if(pendingSceneName&&!scene){const n=pendingSceneName;pendingSceneName=null;await showScene(n,true)}if(pendingPScene){const ps=pendingPScene;pendingPScene=null;for(const k in ps)if(typeof ps[k]==='string')await showScene(ps[k],true,k)}}
+  try{const j=await gmFetch('/ping');gmStat((j.gmFolder?'「'+j.gmFolder+'」の中継に':'')+(j.busy?'つながっています（GMは返答中）':'つながっています'),true);await loadConfig();vvLoad(true);await loadBoard();if(pendingSceneName&&!scene){const n=pendingSceneName;pendingSceneName=null;await showScene(n,true)}if(pendingPScene){const ps=pendingPScene;pendingPScene=null;for(const k in ps)if(typeof ps[k]==='string')await showScene(ps[k],true,k)}}
   catch(e){if(!quiet)gmStat(e.message,false)}
 }
 $('gmPing').onclick=()=>pingRelay(false);
@@ -1394,7 +1465,7 @@ function connectHost(){
         clues=Array.isArray(d.clues)?d.clues:[];progress=String(d.progress||'');scene=d.scene&&safeImg(d.scene.data)?d.scene:null;board=Array.isArray(d.board)?d.board:[];
         cfg=d.cfg&&typeof d.cfg==='object'?{...DEFAULT_CFG,...d.cfg}:{...DEFAULT_CFG};renderTplButtons();
         ready=d.ready&&typeof d.ready==='object'?d.ready:{};gmCursorT=typeof d.cursorT==='number'?d.cursorT:null;
-        clearTimeout(resyncT);gmBusy=!!d.busy;renderAll();status(resyncing?'同期し直しました（'+hhmm(Date.now())+'）':'卓に接続しました');resyncing=false;$('gmBusy').classList.toggle('hidden',!d.busy);return;
+        clearTimeout(resyncT);gmBusy=!!d.busy;vvCredit=typeof d.ttsMode==='string'?d.ttsMode:null;renderTts();renderAll();status(resyncing?'同期し直しました（'+hhmm(Date.now())+'）':'卓に接続しました');resyncing=false;$('gmBusy').classList.toggle('hidden',!d.busy);return;
       case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m);speakMsg(d.m)}return;
       case'upd':if(d.m&&d.m.id)replaceMsg(d.m);return;
       case'config':applyCfg(d.cfg);return;
@@ -1406,6 +1477,9 @@ function connectHost(){
       case'progress':progress=String(d.text||'');renderProgress();return;
       case'scene':scene=d.scene&&safeImg(d.scene.data)?d.scene:null;renderScene();return;
       case'board':board=Array.isArray(d.items)?d.items:[];renderBoard();return;
+      case'ttsMode':vvCredit=typeof d.credit==='string'?d.credit.slice(0,60):null;renderTts();return;
+      case'tts':audioPush(d);return;
+      case'ttsText':if(Array.isArray(d.texts))ttsFallback(d.texts.map(t=>String(t).slice(0,500)).slice(0,60));return;
       case'busy':gmBusy=!!d.on;$('gmBusy').classList.toggle('hidden',!d.on);renderClues();return;
     }
   });
