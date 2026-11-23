@@ -114,6 +114,13 @@ header h1{font-size:16px;margin:0}
 .readyTag{font-size:11px;font-weight:700;color:var(--ok);background:var(--okbg);border-radius:4px;padding:0 6px}
 .gmBtn.armed{background:var(--ng);border-color:var(--ng)}
 .colHead:has(#gmConfirm){position:relative}
+.ttsBtn{min-height:30px;padding:0 10px;font-size:12px;border-radius:999px}
+.ttsBtn[aria-pressed=true]{background:var(--gm);border-color:var(--gmline);color:var(--gmline);font-weight:700}
+.ttsGear{min-height:30px;width:30px;padding:0;font-size:14px;border-radius:999px}
+.ttsPanel{position:absolute;left:8px;top:100%;z-index:4;width:300px;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 16px rgba(0,0,0,.18);padding:10px 12px;display:grid;gap:4px;font-size:12px}
+.ttsPanel label{font-size:12px;color:var(--mute);margin-top:4px}
+.ttsPanel .ttsRow{display:flex;gap:6px;margin-top:6px}
+.ttsPanel .small{margin:6px 0 0;line-height:1.6}
 .gmConfirm{position:absolute;left:0;right:0;top:100%;z-index:3;box-shadow:0 4px 10px rgba(0,0,0,.15);padding:8px 14px;font-size:13px;font-weight:600;color:var(--ng);background:var(--ngbg);border-bottom:1px solid var(--line)}
 .gmBtn.allReady{box-shadow:0 0 0 3px var(--okbg),0 0 0 5px var(--ok)}
 .m.pending .body{border-style:dashed}
@@ -267,7 +274,13 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
 
     <!-- 中央左：GM欄 -->
     <section class="col" aria-label="GM">
-      <div class="colHead"><h2>GM</h2><span class="spacer"></span><button class="gmBtn hidden" type="button" id="gmBtn" title="前回のGMの返答以降の発言とダイスを、キャラシートと一緒にGMに渡します">GMに渡す</button><div id="gmConfirm" class="gmConfirm hidden" role="alert"></div></div>
+      <div class="colHead"><h2>GM</h2><button type="button" class="ttsBtn" id="ttsBtn" aria-pressed="false" title="GMの全員への描写を、届いたときにこのブラウザで読み上げます（自分の画面だけ）">🔈 読み上げ：オフ</button><button type="button" class="ttsGear" id="ttsGear" aria-expanded="false" aria-label="読み上げの設定" title="読み上げの設定">⚙</button><span class="spacer"></span><button class="gmBtn hidden" type="button" id="gmBtn" title="前回のGMの返答以降の発言とダイスを、キャラシートと一緒にGMに渡します">GMに渡す</button><div id="gmConfirm" class="gmConfirm hidden" role="alert"></div>
+        <div id="ttsPanel" class="ttsPanel hidden">
+          <label for="ttsVoice">声</label><select id="ttsVoice"></select>
+          <label for="ttsRate">速さ <span id="ttsRateV"></span></label><input type="range" id="ttsRate" min="0.6" max="1.8" step="0.1">
+          <div class="ttsRow"><button type="button" id="ttsTest" class="small-btn">試しに読む</button><button type="button" id="ttsStop" class="small-btn">止める</button></div>
+          <p class="small">読むのは、GMの全員への描写だけです（あなただけの描写や、HPの変化などの行は読みません）。設定はこのブラウザにだけ保存されます。VCのマイクが読み上げの音を拾うと二重に聞こえるので、ヘッドホンがおすすめです。</p>
+        </div></div>
       <div class="log" id="gmLog" aria-live="polite"></div>
       <p class="hint" id="gmPendingBar" style="padding:6px 14px;border-top:1px solid var(--line)"></p>
     </section>
@@ -608,6 +621,53 @@ function buildTo(){
   updateSendTo();
 }
 $('sayAs').addEventListener('change',buildTo);
+
+/* ===== 読み上げ（各自のブラウザで。GMの全員への描写だけ） ===== */
+const TTS_DEF={on:false,voice:'',rate:1.1};
+const TTS_LEAD='GMの描写です。';   // 毎回はじめに読む決まり文句（いきなり本文が始まらないように）
+let tts=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.tts')||'{}');return{...TTS_DEF,voice:String(r.voice||''),rate:+r.rate||TTS_DEF.rate,on:false}}catch(e){return{...TTS_DEF}}})();
+const ttsOK=typeof speechSynthesis!=='undefined'&&typeof SpeechSynthesisUtterance!=='undefined';
+function ttsSave(){try{const {on,...rest}=tts;localStorage.setItem('kurotaku.tts',JSON.stringify(rest))}catch(e){}}
+function jaVoices(){return ttsOK?speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang)):[]}
+function fillVoices(){
+  const sel=$('ttsVoice');const vs=jaVoices();sel.textContent='';
+  if(!vs.length){const o=el('option',null,'（日本語の声が見つかりません）');o.value='';sel.append(o);return}
+  vs.forEach(v=>{const o=el('option',null,v.name);o.value=v.voiceURI;sel.append(o)});
+  sel.value=vs.some(v=>v.voiceURI===tts.voice)?tts.voice:vs[0].voiceURI;
+}
+// 記号や書式を取り除き、文に区切る（長い1文は途中で止まるブラウザがあるため）
+function ttsClean(text){
+  return String(text).split('\n').map(l=>l.replace(/^#{1,4}\s+/,'').replace(/\*\*/g,'').replace(/[【】]/g,'、').replace(/[＊*_`~|｜#＃→⇒▶▷◆◇■□●○・]/g,' ').replace(/[─━―‐–—]{2,}|…+|‥+/g,'、').replace(/[（）：:]/g,'、').replace(/\s+/g,' ').trim()).filter(Boolean).join('。')
+    .replace(/、{2,}/g,'、').replace(/[、。]{2,}/g,'。');
+}
+function ttsChunks(text){return text.split(/(?<=[。！？!?])/).map(x=>x.trim()).filter(x=>x&&!/^[、。\s]+$/.test(x))}
+let ttsGen=0;function ttsCancel(){ttsGen++;if(ttsOK)speechSynthesis.cancel()}
+function ttsUtter(t,v){const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(v)u.voice=v;u.rate=tts.rate;return u}
+// lead を付けると、決まり文句のあと少し間を空けてから本文を読む
+function ttsSay(text,lead){
+  if(!ttsOK)return;const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];
+  if(lead){const u=ttsUtter(TTS_LEAD,v);const rest=ttsChunks(text);const g=ttsGen;u.onend=()=>setTimeout(()=>{if(g===ttsGen)rest.forEach(t=>speechSynthesis.speak(ttsUtter(t,v)))},600);speechSynthesis.speak(u);return}
+  ttsChunks(text).forEach(t=>speechSynthesis.speak(ttsUtter(t,v)));
+}
+function speakMsg(m){
+  if(!tts.on||!ttsOK||m.kind!=='gm'||m.to)return;
+  const body=ttsClean(m.text);if(!body)return;
+  ttsSay(body,true);
+}
+function renderTts(){
+  const b=$('ttsBtn');b.setAttribute('aria-pressed',tts.on);b.textContent=tts.on?'🔊 読み上げ：オン':'🔈 読み上げ：オフ';
+  $('ttsRate').value=tts.rate;$('ttsRateV').textContent='×'+Number(tts.rate).toFixed(1);
+}
+if(!ttsOK){$('ttsBtn').disabled=true;$('ttsBtn').title='このブラウザは読み上げに対応していません';$('ttsGear').classList.add('hidden')}
+else{fillVoices();speechSynthesis.addEventListener?.('voiceschanged',fillVoices)}
+renderTts();
+$('ttsBtn').onclick=()=>{tts.on=!tts.on;if(!tts.on)ttsCancel();else ttsSay('読み上げをオンにしました。');renderTts()};
+$('ttsGear').onclick=()=>{const p=$('ttsPanel');const open=p.classList.toggle('hidden')===false;$('ttsGear').setAttribute('aria-expanded',open);if(open)fillVoices()};
+$('ttsVoice').onchange=e=>{tts.voice=e.target.value;ttsSave()};
+$('ttsRate').oninput=e=>{tts.rate=+e.target.value;ttsSave();renderTts()};
+$('ttsTest').onclick=()=>{ttsCancel();ttsSay(ttsClean('十一月の夕方。町の空は、山の端から順に、**橙から薄紫**へ沈んでいく。\n【判定】心＋観察 目標値8'),true)};
+$('ttsStop').onclick=ttsCancel;
+document.addEventListener('click',e=>{const p=$('ttsPanel');if(!p.classList.contains('hidden')&&!p.contains(e.target)&&e.target!==$('ttsGear')){p.classList.add('hidden');$('ttsGear').setAttribute('aria-expanded','false')}});
 
 /* ===== 描画：情景・資料 ===== */
 function renderScene(){
@@ -1011,7 +1071,7 @@ function hostDeleteSheet(target){
 function hostPush(m){
   m.id=uid();m.t=Date.now();log.push(m);if(log.length>3000)log=log.slice(-3000);
   saveRoom();
-  if(vis(m,cid)){appendMsg(m);showMyRoll(m)}
+  if(vis(m,cid)){appendMsg(m);showMyRoll(m);speakMsg(m)}
   conns.forEach((ent,k)=>{if(vis(m,k))safeSend(ent.conn,{type:'msg',m})});
   updatePending();
 }
@@ -1335,7 +1395,7 @@ function connectHost(){
         cfg=d.cfg&&typeof d.cfg==='object'?{...DEFAULT_CFG,...d.cfg}:{...DEFAULT_CFG};renderTplButtons();
         ready=d.ready&&typeof d.ready==='object'?d.ready:{};gmCursorT=typeof d.cursorT==='number'?d.cursorT:null;
         clearTimeout(resyncT);gmBusy=!!d.busy;renderAll();status(resyncing?'同期し直しました（'+hhmm(Date.now())+'）':'卓に接続しました');resyncing=false;$('gmBusy').classList.toggle('hidden',!d.busy);return;
-      case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m)}return;
+      case'msg':if(d.m){log.push(d.m);appendMsg(d.m);showMyRoll(d.m);speakMsg(d.m)}return;
       case'upd':if(d.m&&d.m.id)replaceMsg(d.m);return;
       case'config':applyCfg(d.cfg);return;
       case'ready':ready=d.ready&&typeof d.ready==='object'?d.ready:{};renderMembers();return;
