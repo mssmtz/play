@@ -286,6 +286,7 @@ h3.sec{font-size:13px;color:var(--mute);margin:14px 0 6px;font-weight:600}
           <label for="ttsRate">速さ <span id="ttsRateV"></span></label><input type="range" id="ttsRate" min="0.6" max="1.8" step="0.1">
           <label for="ttsVol">音量 <span id="ttsVolV"></span></label><input type="range" id="ttsVol" min="0" max="1" step="0.05">
           <label for="ttsGap">文と文の間 <span id="ttsGapV"></span></label><input type="range" id="ttsGap" min="0" max="1.5" step="0.1">
+          <label for="ttsPgap">段落と段落の間 <span id="ttsPgapV"></span></label><input type="range" id="ttsPgap" min="0" max="3" step="0.1">
           <div class="ttsRow"><button type="button" id="ttsTest" class="small-btn">試しに読む</button><button type="button" id="ttsStop" class="small-btn">止める</button></div>
           <p class="small">ホストがVOICEVOXの声を選んでいるときは、その声が全員に届きます（声はホストが選び、速さと音量は各自）。読むのは、GMの全員への描写だけです（あなただけの描写や、HPの変化などの行は読みません）。設定はこのブラウザにだけ保存されます。VCのマイクが読み上げの音を拾うと二重に聞こえるので、ヘッドホンがおすすめです。</p>
         </div></div>
@@ -639,9 +640,9 @@ function buildTo(){
 $('sayAs').addEventListener('change',buildTo);
 
 /* ===== 読み上げ（各自のブラウザで。GMの全員への描写だけ） ===== */
-const TTS_DEF={on:false,voice:'',rate:1.1,vol:1,gap:0.4};
+const TTS_DEF={on:false,voice:'',rate:1.1,vol:1,gap:0.4,pgap:1.2};
 const TTS_LEAD='GMの描写です。';   // 毎回はじめに読む決まり文句（いきなり本文が始まらないように）
-let tts=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.tts')||'{}');return{...TTS_DEF,voice:String(r.voice||''),rate:+r.rate||TTS_DEF.rate,vol:r.vol!=null&&isFinite(+r.vol)?Math.min(1,Math.max(0,+r.vol)):1,gap:r.gap!=null&&isFinite(+r.gap)?Math.min(1.5,Math.max(0,+r.gap)):TTS_DEF.gap,on:false}}catch(e){return{...TTS_DEF}}})();
+let tts=(()=>{try{const r=JSON.parse(localStorage.getItem('kurotaku.tts')||'{}');return{...TTS_DEF,voice:String(r.voice||''),rate:+r.rate||TTS_DEF.rate,vol:r.vol!=null&&isFinite(+r.vol)?Math.min(1,Math.max(0,+r.vol)):1,gap:r.gap!=null&&isFinite(+r.gap)?Math.min(1.5,Math.max(0,+r.gap)):TTS_DEF.gap,pgap:r.pgap!=null&&isFinite(+r.pgap)?Math.min(3,Math.max(0,+r.pgap)):TTS_DEF.pgap,on:false}}catch(e){return{...TTS_DEF}}})();
 const ttsOK=typeof speechSynthesis!=='undefined'&&typeof SpeechSynthesisUtterance!=='undefined';
 function ttsSave(){try{const {on,...rest}=tts;localStorage.setItem('kurotaku.tts',JSON.stringify(rest))}catch(e){}}
 function jaVoices(){return ttsOK?speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang)):[]}
@@ -652,22 +653,36 @@ function fillVoices(){
   sel.value=vs.some(v=>v.voiceURI===tts.voice)?tts.voice:vs[0].voiceURI;
 }
 // 記号や書式を取り除き、文に区切る（長い1文は途中で止まるブラウザがあるため）
+// 段落（空行で区切られたまとまり）の切れ目は \u2029 で残す（文の切れ目より長く間をあけるため）
+const PARA='\u2029';
 function ttsClean(text){
+  return String(text).replace(/\r/g,'').split(/\n[ \t　]*\n+/).map(par=>ttsCleanPar(par)).filter(Boolean).join('。'+PARA).replace(/[、。]+\u2029/g,'。'+PARA);
+}
+function ttsCleanPar(text){
   return String(text).split('\n').map(l=>l.replace(/^#{1,4}\s+/,'').replace(/\*\*/g,'').replace(/[【】]/g,'、').replace(/[＊*_`~|｜#＃→⇒▶▷◆◇■□●○・]/g,' ').replace(/[─━―‐–—]{2,}|…+|‥+/g,'、').replace(/[（）：:]/g,'、').replace(/\s+/g,' ').trim()).filter(Boolean).join('。')
     .replace(/、{2,}/g,'、').replace(/[、。]{2,}/g,'。');
 }
-function ttsChunks(text){return text.split(/(?<=[。！？!?])/).map(x=>x.trim()).filter(x=>x&&!/^[、。\s]+$/.test(x))}
+// 文に区切る。段落の最後の文には \u2029 を付けたまま返す（isPara で見分け、plain で外す）
+function ttsChunks(text){
+  const out=[];const pars=String(text).split(PARA);
+  pars.forEach((p,pi)=>{const cs=p.split(/(?<=[。！？!?])/).map(x=>x.trim()).filter(x=>x&&!/^[、。\s]+$/.test(x));
+    cs.forEach((c,ci)=>out.push(c+(ci===cs.length-1&&pi<pars.length-1?PARA:'')))});
+  return out;
+}
+const isPara=t=>String(t).endsWith(PARA);
+const plain=t=>String(t).split(PARA).join('');
 let ttsGen=0;function ttsCancel(){ttsGen++;speakQ=[];speakBusy=false;if(ttsOK)speechSynthesis.cancel();audioStop()}
 // 1文ずつ順に読み、文と文の間をあける（決まり文句のあとは少し長め）。止められたら続きを読まない
 let speakQ=[],speakBusy=false;
 function speakSeq(texts,lead,onDone){if(!ttsOK||!texts.length){onDone&&onDone();return}
-  texts.forEach((t,i)=>speakQ.push({t:String(t).slice(0,500),lead:lead&&i===0,done:i===texts.length-1?onDone:null}));if(!speakBusy)speakNext()}
+  texts.forEach((t,i)=>speakQ.push({t:plain(t).slice(0,500),para:isPara(t),lead:lead&&i===0,done:i===texts.length-1?onDone:null}));if(!speakBusy)speakNext()}
 function speakNext(){
   const it=speakQ.shift();if(!it){speakBusy=false;return}speakBusy=true;
   const v=jaVoices().find(x=>x.voiceURI===tts.voice)||jaVoices()[0];const u=ttsUtter(it.t,v);const g=ttsGen;
-  const fin=()=>{if(g!==ttsGen)return;it.done&&it.done();setTimeout(()=>{if(g===ttsGen)speakNext()},it.lead?600:tts.gap*1000)};
+  const fin=()=>{if(g!==ttsGen)return;it.done&&it.done();setTimeout(()=>{if(g===ttsGen)speakNext()},pauseMs(it))};
   u.onend=fin;u.onerror=fin;speechSynthesis.speak(u);
 }
+function pauseMs(it){return it.lead?600:(it.para?tts.pgap:tts.gap)*1000}
 function ttsUtter(t,v){const u=new SpeechSynthesisUtterance(t);u.lang='ja-JP';if(v)u.voice=v;u.rate=tts.rate;u.volume=tts.vol;return u}
 // lead を付けると、決まり文句のあと少し間を空けてから本文を読む
 function ttsSay(text,lead){
@@ -698,9 +713,9 @@ function vvNarrate(body,mid){
       const d={type:'tts',audio:vvLeadAudio.a,lead:true};sendAll(d);audioPush(d)}
     catch(e){hostWarn('読み上げの音声を作れませんでした（'+e.message+'）。各自のブラウザの声で読みます');sendAll({type:'ttsText',texts:parts});ttsFallback(parts);return}
     for(let i=0;i<parts.length;i++){
-      let a;try{a=await vvAudio(parts[i],sel)}
+      let a;try{a=await vvAudio(plain(parts[i]),sel)}
       catch(e){hostWarn('読み上げの音声を作れませんでした（'+e.message+'）。残りは各自のブラウザの声で読みます');const rest=parts.slice(i);sendAll({type:'ttsText',texts:rest});ttsFallback(rest);return}
-      got.push(a);const d={type:'tts',audio:a};sendAll(d);audioPush(d);
+      const para=isPara(parts[i]);got.push({a,para});const d={type:'tts',audio:a,para};sendAll(d);audioPush(d);
     }
     if(mid)vvCachePut(sel.id+':'+mid,got);
   }).catch(()=>{});
@@ -710,11 +725,11 @@ function vvReadFor(to,mid){
   const sel=vvSel;if(!sel||!vvCredit)return;
   const m=log.find(x=>x.id===mid&&x.kind==='gm'&&!x.to);if(!m)return;
   const send=d=>{if(to===cid)hostLocal(d);else{const ent=conns.get(to);if(ent)safeSend(ent.conn,d)}};
-  const deliver=(a,last)=>send({type:'tts',audio:a,manual:true,last});
+  const deliver=(x,last)=>send({type:'tts',audio:x.a,para:x.para,manual:true,last});
   const hit=vvCache.get(sel.id+':'+mid);
-  if(hit&&hit.length){hit.forEach((a,i)=>deliver(a,i===hit.length-1));return}
+  if(hit&&hit.length){hit.forEach((x,i)=>deliver(x,i===hit.length-1));return}
   const parts=ttsChunks(ttsClean(m.text));const got=[];
-  vvChain=vvChain.then(async()=>{for(let i=0;i<parts.length;i++){let a;try{a=await vvAudio(parts[i],sel)}catch(e){send({type:'ttsReadText',texts:parts.slice(i)});return}got.push(a);deliver(a,i===parts.length-1)}vvCachePut(sel.id+':'+mid,got)}).catch(()=>{});
+  vvChain=vvChain.then(async()=>{for(let i=0;i<parts.length;i++){let a;try{a=await vvAudio(plain(parts[i]),sel)}catch(e){send({type:'ttsReadText',texts:parts.slice(i)});return}const x={a,para:isPara(parts[i])};got.push(x);deliver(x,i===parts.length-1)}vvCachePut(sel.id+':'+mid,got)}).catch(()=>{});
 }
 function hostLocal(d){if(d.type==='tts')audioPush(d);else if(d.type==='ttsReadText')readTexts(d.texts)}
 // 音声を作れなかったときの「▶ 読む」は、自分のブラウザの声で読む
@@ -747,7 +762,7 @@ function audioPush(d){if(!tts.on&&!d.manual)return;if(d.manual)audioMore=!d.last
 function audioNext(){
   const d=audioQ.shift();if(!d){audioCur=null;if(!audioMore)readDone();return}
   const a=new Audio(d.audio);a.playbackRate=tts.rate;a.volume=tts.vol;audioCur=a;
-  a.onended=()=>{audioCur=null;const w=d.lead?600:tts.gap*1000;if(w>0)audioWait=setTimeout(()=>{audioWait=null;audioNext()},w);else audioNext()};
+  a.onended=()=>{audioCur=null;const w=pauseMs(d);if(w>0)audioWait=setTimeout(()=>{audioWait=null;audioNext()},w);else audioNext()};
   a.onerror=()=>{audioCur=null;audioNext()};
   const pr=a.play();if(pr&&pr.catch)pr.catch(e=>{if(e&&e.name==='NotAllowedError'){audioQ.unshift(d);audioCur=null;audioBlocked=true;$('ttsUnlock').classList.remove('hidden')}else{audioCur=null;audioNext()}});
 }
@@ -782,12 +797,14 @@ function renderTts(){
   $('ttsRate').value=tts.rate;$('ttsRateV').textContent='×'+Number(tts.rate).toFixed(1);
   $('ttsVol').value=tts.vol;$('ttsVolV').textContent=Math.round(tts.vol*100)+'%';
   $('ttsGap').value=tts.gap;$('ttsGapV').textContent=Number(tts.gap).toFixed(1)+'秒';
+  $('ttsPgap').value=tts.pgap;$('ttsPgapV').textContent=Number(tts.pgap).toFixed(1)+'秒';
   $('ttsVoiceRow').classList.toggle('hidden',!!vvCredit);const c=$('vvCredit');c.classList.toggle('hidden',!vvCredit);c.textContent=vvCredit?'声：'+vvCredit+'（ホストが選択）':'';
   if(!ttsOK&&!vvCredit){b.disabled=true}else b.disabled=false;
 }
 if(!ttsOK){$('ttsBtn').title='このブラウザは読み上げに対応していません（ホストがVOICEVOXを使っているときは聞けます）'}
 else{fillVoices();speechSynthesis.addEventListener?.('voiceschanged',fillVoices)}
 $('ttsGap').oninput=e=>{tts.gap=+e.target.value;ttsSave();renderTts()};
+$('ttsPgap').oninput=e=>{tts.pgap=+e.target.value;ttsSave();renderTts()};
 $('ttsVol').oninput=e=>{tts.vol=+e.target.value;ttsSave();renderTts();if(audioCur)audioCur.volume=tts.vol};
 renderTts();
 $('ttsBtn').onclick=()=>{tts.on=!tts.on;if(!tts.on)ttsCancel();else if(!vvCredit)ttsSay('読み上げをオンにしました。');renderTts()};
