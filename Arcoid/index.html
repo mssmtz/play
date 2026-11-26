@@ -188,7 +188,7 @@ function botChoose(p){const ins=inside(),n=ins.length,left=S.deck.length;
 
 function pub(){const comp={t:0,s:0,m:0,l:0};S.deck.forEach(c=>{if(c.k==='t')comp.t++;else comp[c.s]++;});
   return{phase:S.phase,raid:S.raid,raids:S.raids,round:S.round,deckN:S.deck.length,comp,path:S.path,lastCard:S.lastCard,reveal:S.reveal,result:S.result,
-    log:S.log.slice(-80),players:S.players.map(p=>({id:p.id,name:p.name,bot:p.bot,online:p.online,hp:p.hp,carried:p.carried,banked:p.banked,status:p.status,skip:!!p.skip,chosen:!!p.choice,last:p.last,raidLog:p.raidLog})),seq:++S.seq};}
+    log:S.log.slice(-80),players:S.players.map(p=>({id:p.id,name:p.name,bot:p.bot,online:p.online,hp:p.hp,carried:p.carried,banked:p.banked,status:p.status,skip:!!p.skip,last:p.last,raidLog:p.raidLog})),seq:++S.seq};}
 //ENGINE-END
 
 // ---------- network / app ----------
@@ -310,7 +310,7 @@ function resultHtml(R,v){const ids=Object.keys(R.acts);
       return`<div class="ri a-${a} ${id===ME?'me':''}"><div class="nm"><span>${esc(p.name)}</span><span class="badge b-${a}">${ACT_NAME[a]}</span></div>${(R.items[id]||[]).map(it=>`<div class="it ${it.c}">${esc(it.t)}</div>`).join('')}</div>`;}).join('')}</div>
     ${v.phase==='result'?'<div class="bar"><i></i></div>':''}</div>`;}
 function plHtml(p,v){const st={in:'ダンジョン内',out:'脱出済み',dead:'死亡',mia:'MIA'}[p.status];
-  let ch='';if(p.status==='in'&&v.phase==='choose')ch=p.chosen?'<span class="chosen">選択済み</span>':'<span class="mu">考え中…</span>';
+  let ch='';if(p.status==='in'&&v.phase==='choose')ch='';
   else if(v.reveal&&v.reveal.ch[p.id])ch=`<span class="tag" style="color:var(--ac);border-color:var(--ac)">${ACT_NAME[v.reveal.ch[p.id]]}</span>`;
   return`<div class="pl ${p.status} ${p.id===ME?'me':''}"><div class="nm"><span>${esc(p.name)}${p.bot?' <span class="tag">CPU</span>':''}${!p.online&&!p.bot?' <span class="tag">切断</span>':''}</span><span class="hp">${p.status==='in'||p.status==='out'?'♥'.repeat(Math.max(0,p.hp))+'♡'.repeat(Math.max(0,HP_MAX-p.hp)):''}</span></div>
     <div class="st">${st} ${ch}${p.skip&&p.status==='in'?' <span class="tag" style="color:#ff7d68;border-color:#7a3226">次のお宝なし</span>':''}</div><div class="st">所持 <b style="color:var(--gold)">${p.carried}</b> ／ 確定 <b>${p.banked}</b></div></div>`;}
