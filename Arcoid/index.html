@@ -82,7 +82,8 @@ table{border-collapse:collapse;width:100%}td,th{padding:6px 8px;border-bottom:1p
       <li>次に全員が「残る／脱出／襲う」を伏せて選び、一斉に公開する。</li>
       <li><b>脱出</b>：通路に残った余りを拾い（同時に脱出した人と山分け）、持っているお宝を確定させて抜ける。</li>
       <li><b>襲う</b>：そのラウンドに脱出した人から、お宝の半分（切り捨て）を奪う。複数人で襲ったら奪った分を山分けし、余りは通路に落ちる。奪ったお宝はまだ確定しない。</li>
-      <li><b>相打ち</b>：誰も脱出せず、2人以上が襲うを選んだら、襲った全員が1ダメージを受ける。1人だけなら空振りで何も起きない。</li>
+      <li><b>空振り</b>：誰も脱出しなかったら襲撃は空振り。空振りした人は、次にめくるカードがお宝なら、その山分けに入れない（メカだったらペナルティは消える）。</li>
+      <li><b>相打ち</b>：2人以上が空振りしたら、空振りに加えて全員が1ダメージを受ける。</li>
       <li>山札が尽きたら、ダンジョンに残っている全員がMIA（お宝を全部失う）。</li>
       <li>決められた回数のレイドを終えて、確定したお宝が一番多い人の勝ち。</li>
     </ul>
@@ -105,13 +106,13 @@ function P(id){return S.players.find(p=>p.id===id);}
 function inside(){return S.players.filter(p=>p.status==='in');}
 function log(m,hl){S.log.push({m,hl:!!hl});if(S.log.length>200)S.log.shift();}
 function addPlayer(id,name,bot){if(S.players.length>=MAX_PLAYERS)return false;
-  S.players.push({id,name:name||'名無し',bot:!!bot,online:true,hp:HP_MAX,carried:0,banked:0,status:'in',choice:null,last:null,raidLog:[]});return true;}
+  S.players.push({id,name:name||'名無し',bot:!!bot,online:true,hp:HP_MAX,carried:0,banked:0,status:'in',choice:null,last:null,raidLog:[],skip:false});return true;}
 function cardLabel(c){return c.k==='t'?'お宝'+c.v:MECHA[c.s].name+'メカ';}
 function kill(p,why){p.status='dead';p.hp=0;if(p.carried)log(`${p.name} は ${why}。お宝 ${p.carried} を失った`,true);else log(`${p.name} は ${why}`,true);S.lost+=p.carried;p.carried=0;}
 
 function startGame(){if(S.players.length<1)return;S.raid=0;S.players.forEach(p=>{p.banked=0;p.raidLog=[];});log('ゲーム開始',true);startRaid();}
 function startRaid(){S.lost+=S.path.reduce((x,e)=>x+e.left,0);S.raid++;S.deck=buildDeck();S.path=[];S.round=0;S.reveal=null;S.result=null;S.lastCard=-1;
-  S.players.forEach(p=>{p.hp=HP_MAX;p.carried=0;p.status='in';p.choice=null;p.last=null;});
+  S.players.forEach(p=>{p.hp=HP_MAX;p.carried=0;p.status='in';p.choice=null;p.last=null;p.skip=false;});
   S.phase='flip';log(`── レイド ${S.raid} / ${S.raids} 開始 ──`,true);ENV.emit();ENV.later(flip,ENV.fast?0:900);}
 
 function flip(){if(S.phase!=='flip')return;
@@ -120,13 +121,18 @@ function flip(){if(S.phase!=='flip')return;
   if(!S.deck.length){ins.forEach(p=>{p.status='mia';log(`${p.name} は山札が尽きてMIA。お宝 ${p.carried} を失った`,true);S.lost+=p.carried;p.carried=0;});endRaid();return;}
   S.round++;S.reveal=null;
   const c=S.deck.pop(),e={c,left:0};S.path.push(e);S.lastCard=S.path.length-1;const n=ins.length;
-  if(c.k==='t'){S.flipped+=c.v;const sh=Math.floor(c.v/n);ins.forEach(p=>p.carried+=sh);e.left=c.v-sh*n;
-    log(`お宝 ${c.v}：${n}人で山分けして1人 ${sh}`+(e.left?`、余り ${e.left} が残る`:''));}
+  if(c.k==='t'){S.flipped+=c.v;const got=ins.filter(p=>!p.skip),sk=ins.filter(p=>p.skip),m=got.length;
+    if(sk.length)log(`${sk.map(p=>p.name).join('・')} は空振りの隙で、このお宝を拾えない`);
+    sk.forEach(p=>p.skip=false);
+    if(m){const sh=Math.floor(c.v/m);got.forEach(p=>p.carried+=sh);e.left=c.v-sh*m;
+      log(`お宝 ${c.v}：${m}人で山分けして1人 ${sh}`+(e.left?`、余り ${e.left} が残る`:''));}
+    else{e.left=c.v;log(`お宝 ${c.v}：拾える人がおらず、そのまま残る`);}}
   else{const nm=MECHA[c.s].name;
     if(n>c.req)log(`${nm}メカ（${c.req}人）を ${n}人で撃破。無傷`);
     else if(n===c.req){log(`${nm}メカ（${c.req}人）をギリギリ ${n}人で撃破。全員1ダメージ`,true);
       ins.forEach(p=>{p.hp--;if(p.hp<=0)kill(p,`${nm}メカとの戦闘で力尽きた`);});}
     else{log(`${nm}メカ（${c.req}人）に ${n}人では勝てない`,true);ins.forEach(p=>kill(p,`${nm}メカに倒された`));}}
+  ins.forEach(p=>p.skip=false);
   if(!inside().length){endRaid();return;}
   S.phase='choose';S.players.forEach(p=>p.choice=null);ENV.emit();
   inside().forEach(p=>{if(p.bot){ENV.later(()=>{if(S.phase==='choose'&&p.status==='in'&&!p.choice){p.choice=botChoose(p);ENV.emit();checkAll();}},ENV.fast?0:500+ENV.rand()*900);}
@@ -153,9 +159,9 @@ function resolve(){if(S.phase!=='resolve')return;
       log(`襲撃者 ${A.map(p=>p.name).join('・')} が1人 ${sh} を手に入れた`+(rem?`（余り ${rem} は通路へ）`:''),true);}
     E.forEach(p=>{add(p,`${p.carried} を確定して脱出`,'g');p.banked+=p.carried;p.raidLog.push(p.carried);log(`${p.name} が脱出。お宝 ${p.carried} を確定`,true);p.carried=0;p.status='out';});
     R.head=A.length?`${E.map(p=>p.name).join('・')} が脱出、${A.map(p=>p.name).join('・')} が襲撃！`:`${E.map(p=>p.name).join('・')} が脱出した`;
-  }else if(A.length===1){add(A[0],'空振り','m');log(`誰も脱出せず。${A[0].name} の襲撃は空振り`);R.head=`${A[0].name} の襲撃は空振り`;
+  }else if(A.length===1){A[0].skip=true;add(A[0],'空振り（次のカードがお宝なら、もらえない）','m');log(`誰も脱出せず。${A[0].name} の襲撃は空振り`);R.head=`${A[0].name} の襲撃は空振り`;
   }else if(A.length){log(`誰も脱出せず。襲った ${A.map(p=>p.name).join('・')} は相打ちで1ダメージ`,true);R.head='相打ち！';
-    A.forEach(p=>{p.hp--;add(p,'相打ち ♥−1','r');if(p.hp<=0){add(p,`倒れた（お宝 ${p.carried} を失った）`,'r');kill(p,'撃ち合いで倒れた');}});
+    A.forEach(p=>{p.hp--;p.skip=true;add(p,'相打ち ♥−1（次のカードがお宝なら、もらえない）','r');if(p.hp<=0){add(p,`倒れた（お宝 ${p.carried} を失った）`,'r');kill(p,'撃ち合いで倒れた');}});
   }else R.head='全員が残った';
   ins.forEach(p=>{if(!R.items[p.id])add(p,p.choice==='stay'?'ダンジョンに残った':'—','m');});
   S.result=R;
@@ -182,7 +188,7 @@ function botChoose(p){const ins=inside(),n=ins.length,left=S.deck.length;
 
 function pub(){const comp={t:0,s:0,m:0,l:0};S.deck.forEach(c=>{if(c.k==='t')comp.t++;else comp[c.s]++;});
   return{phase:S.phase,raid:S.raid,raids:S.raids,round:S.round,deckN:S.deck.length,comp,path:S.path,lastCard:S.lastCard,reveal:S.reveal,result:S.result,
-    log:S.log.slice(-80),players:S.players.map(p=>({id:p.id,name:p.name,bot:p.bot,online:p.online,hp:p.hp,carried:p.carried,banked:p.banked,status:p.status,chosen:!!p.choice,last:p.last,raidLog:p.raidLog})),seq:++S.seq};}
+    log:S.log.slice(-80),players:S.players.map(p=>({id:p.id,name:p.name,bot:p.bot,online:p.online,hp:p.hp,carried:p.carried,banked:p.banked,status:p.status,skip:!!p.skip,chosen:!!p.choice,last:p.last,raidLog:p.raidLog})),seq:++S.seq};}
 //ENGINE-END
 
 // ---------- network / app ----------
@@ -277,7 +283,7 @@ function render(){const app=$('#app');
     if(v.phase==='choose'&&me.status==='in'){const mine=APP.myChoice&&APP.myChoice.round===v.round&&APP.myChoice.raid===v.raid?APP.myChoice.a:null;
       h+=`<div class="panel"><div style="margin-bottom:8px">${mine?`<b style="color:var(--ac)">${ACT_NAME[mine]}</b> を選んだ。他のプレイヤーを待っています…`:'行動を選んでください（決定後は変更できません）'}</div><div class="acts">
         ${['stay','escape','attack'].map(a=>`<button class="${mine===a?'sel':''}" ${mine?'disabled':''} onclick="act('${a}')">${ACT_NAME[a]}</button>`).join('')}</div>
-        <div class="mu" style="font-size:12px;margin-top:8px">残る：次のカードへ ／ 脱出：通路の余りを拾ってお宝を確定 ／ 襲う：今ラウンドの脱出者から半分奪う（2人以上が空振りしたら相打ちで全員1ダメージ）</div></div>`;}
+        <div class="mu" style="font-size:12px;margin-top:8px">残る：次のカードへ ／ 脱出：通路の余りを拾ってお宝を確定 ／ 襲う：今ラウンドの脱出者から半分奪う（空振りしたら次のカードのお宝をもらえない。2人以上の空振りは相打ちで1ダメージ）</div></div>`;}
     else if(me.status!=='in'&&(v.phase==='choose'||v.phase==='flip'||v.phase==='resolve')){h+=`<div class="panel mu">${me.status==='out'?'脱出済み。':me.status==='mia'?'MIA。':'倒れた。'}レイドの終わりを見届けよう。</div>`;}
     else if(v.phase==='flip'||v.phase==='resolve'){h+=`<div class="panel mu">${v.phase==='flip'?'次のカードをめくります…':'公開中…'}</div>`;}
   }
@@ -307,7 +313,7 @@ function plHtml(p,v){const st={in:'ダンジョン内',out:'脱出済み',dead:'
   let ch='';if(p.status==='in'&&v.phase==='choose')ch=p.chosen?'<span class="chosen">選択済み</span>':'<span class="mu">考え中…</span>';
   else if(v.reveal&&v.reveal.ch[p.id])ch=`<span class="tag" style="color:var(--ac);border-color:var(--ac)">${ACT_NAME[v.reveal.ch[p.id]]}</span>`;
   return`<div class="pl ${p.status} ${p.id===ME?'me':''}"><div class="nm"><span>${esc(p.name)}${p.bot?' <span class="tag">CPU</span>':''}${!p.online&&!p.bot?' <span class="tag">切断</span>':''}</span><span class="hp">${p.status==='in'||p.status==='out'?'♥'.repeat(Math.max(0,p.hp))+'♡'.repeat(Math.max(0,HP_MAX-p.hp)):''}</span></div>
-    <div class="st">${st} ${ch}</div><div class="st">所持 <b style="color:var(--gold)">${p.carried}</b> ／ 確定 <b>${p.banked}</b></div></div>`;}
+    <div class="st">${st} ${ch}${p.skip&&p.status==='in'?' <span class="tag" style="color:#ff7d68;border-color:#7a3226">次のお宝なし</span>':''}</div><div class="st">所持 <b style="color:var(--gold)">${p.carried}</b> ／ 確定 <b>${p.banked}</b></div></div>`;}
 render();
 </script>
 </body>
