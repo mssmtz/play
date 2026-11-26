@@ -22,12 +22,13 @@ h1{font-size:28px;letter-spacing:.2em;margin:8px 0 2px;color:var(--ac)}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mu)}
 .path{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px}
-.card{flex:0 0 auto;width:74px;height:96px;border-radius:8px;border:1px solid var(--line);background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;position:relative}
-.card .big{font-size:24px;font-weight:700}
+.card{flex:0 0 auto;width:86px;height:140px;gap:1px;border-radius:8px;border:1px solid var(--line);background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;position:relative}
+.card .big{font-size:20px;font-weight:700;line-height:1.1}
 .card.t{border-color:#6b5a2a}.card.t .big{color:var(--gold)}
 .card.m{border-color:#6b3227}.card.m .big{color:var(--red)}
 .card.new{outline:2px solid var(--ac)}
-.card .left{position:absolute;bottom:4px;font-size:11px;color:var(--gold)}
+.card .left{position:absolute;bottom:3px;font-size:11px;color:var(--gold)}
+.card{padding-bottom:10px}
 .players{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 .pl{background:var(--p2);border:1px solid var(--line);border-radius:10px;padding:10px}
 .pl.me{border-color:var(--ac)}
@@ -64,7 +65,7 @@ table{border-collapse:collapse;width:100%}td,th{padding:6px 8px;border-bottom:1p
       <li>次に全員が「残る／脱出／襲う」を伏せて選び、一斉に公開する。</li>
       <li><b>脱出</b>：通路に残った余りを拾い（同時に脱出した人と山分け）、持っているお宝を確定させて抜ける。</li>
       <li><b>襲う</b>：そのラウンドに脱出した人から、お宝の半分（切り捨て）を奪う。複数人で襲ったら奪った分を山分けし、余りは通路に落ちる。奪ったお宝はまだ確定しない。</li>
-      <li><b>相打ち</b>：誰も脱出しなかったラウンドは、襲うを選んだ全員が1ダメージを受ける。</li>
+      <li><b>相打ち</b>：誰も脱出せず、2人以上が襲うを選んだら、襲った全員が1ダメージを受ける。1人だけなら空振りで何も起きない。</li>
       <li>山札が尽きたら、ダンジョンに残っている全員がMIA（お宝を全部失う）。</li>
       <li>決められた回数のレイドを終えて、確定したお宝が一番多い人の勝ち。</li>
     </ul>
@@ -132,6 +133,7 @@ function resolve(){if(S.phase!=='resolve')return;
       if(rem&&S.path.length)S.path[S.path.length-1].left+=rem;
       log(`襲撃者 ${A.map(p=>p.name).join('・')} が1人 ${sh} を手に入れた`+(rem?`（余り ${rem} は通路へ）`:''),true);}
     E.forEach(p=>{p.banked+=p.carried;p.raidLog.push(p.carried);log(`${p.name} が脱出。お宝 ${p.carried} を確定`,true);p.carried=0;p.status='out';});
+  }else if(A.length===1){log(`誰も脱出せず。${A[0].name} の襲撃は空振り`);
   }else if(A.length){log(`誰も脱出せず。襲った ${A.map(p=>p.name).join('・')} は相打ちで1ダメージ`,true);
     A.forEach(p=>{p.hp--;if(p.hp<=0)kill(p,'撃ち合いで倒れた');});}
   S.players.forEach(p=>{if(p.status!=='in')p.choice=null;});
@@ -250,7 +252,7 @@ function render(){const app=$('#app');
     if(v.phase==='choose'&&me.status==='in'){const mine=APP.myChoice&&APP.myChoice.round===v.round&&APP.myChoice.raid===v.raid?APP.myChoice.a:null;
       h+=`<div class="panel"><div style="margin-bottom:8px">${mine?'選択済み。他のプレイヤーを待っています（変更可）':'行動を選んでください'}</div><div class="acts">
         ${['stay','escape','attack'].map(a=>`<button class="${mine===a?'sel':''}" onclick="act('${a}')">${ACT_NAME[a]}</button>`).join('')}</div>
-        <div class="mu" style="font-size:12px;margin-top:8px">残る：次のカードへ ／ 脱出：通路の余りを拾ってお宝を確定 ／ 襲う：今ラウンドの脱出者から半分奪う（誰も脱出しなければ1ダメージ）</div></div>`;}
+        <div class="mu" style="font-size:12px;margin-top:8px">残る：次のカードへ ／ 脱出：通路の余りを拾ってお宝を確定 ／ 襲う：今ラウンドの脱出者から半分奪う（2人以上が空振りしたら相打ちで全員1ダメージ）</div></div>`;}
     else if(me.status!=='in'&&(v.phase==='choose'||v.phase==='flip'||v.phase==='resolve')){h+=`<div class="panel mu">${me.status==='out'?'脱出済み。':me.status==='mia'?'MIA。':'倒れた。'}レイドの終わりを見届けよう。</div>`;}
     else if(v.phase==='flip'||v.phase==='resolve'){h+=`<div class="panel mu">${v.phase==='flip'?'次のカードをめくります…':'公開中…'}</div>`;}
   }
@@ -263,8 +265,14 @@ function render(){const app=$('#app');
   h+=`<div class="panel"><div class="players">${v.players.map(p=>plHtml(p,v)).join('')}</div></div>`;
   h+=`<div class="panel"><b>ログ</b><div class="log" id="log">${v.log.slice().reverse().map(l=>`<div class="${l.hl?'hl':''}">${esc(l.m)}</div>`).join('')}</div></div>`;
   app.innerHTML=h;}
-function cardHtml(e,isNew){const c=e.c;if(c.k==='t')return`<div class="card t ${isNew?'new':''}"><div class="mu">お宝</div><div class="big">${c.v}</div>${e.left?`<div class="left">余り ${e.left}</div>`:''}</div>`;
-  return`<div class="card m ${isNew?'new':''}"><div class="mu">${MECHA[c.s].name}メカ</div><div class="big">${c.req}人</div>${e.left?`<div class="left">余り ${e.left}</div>`:''}</div>`;}
+const ART={
+t:`<svg viewBox="0 0 40 40" width="44" height="44" style="margin:6px 0"><polygon points="7,15 13,7 27,7 33,15 20,34" fill="#f2c14e" stroke="#7a5a12" stroke-width="1.2" stroke-linejoin="round"/><polyline points="7,15 33,15" fill="none" stroke="#7a5a12" stroke-width="1"/><polyline points="13,7 16,15 20,34 24,15 27,7" fill="none" stroke="#7a5a12" stroke-width="1"/><polygon points="16,15 20,7 24,15" fill="#fde7a0" opacity=".8"/></svg>`,
+s:`<svg viewBox="0 0 40 40" width="36" height="36" style="margin:10px 0"><line x1="9" y1="9" x2="31" y2="9" stroke="#9aa0a8" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="9" x2="20" y2="14" stroke="#9aa0a8" stroke-width="2"/><circle cx="20" cy="23" r="9" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><circle cx="20" cy="23" r="3.6" fill="#ffe08a"/><circle cx="20" cy="23" r="1.4" fill="#2a1208"/><line x1="15" y1="31" x2="13" y2="35" stroke="#9aa0a8" stroke-width="1.6" stroke-linecap="round"/><line x1="25" y1="31" x2="27" y2="35" stroke="#9aa0a8" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+m:`<svg viewBox="0 0 40 40" width="46" height="46" style="margin:5px 0"><rect x="10" y="8" width="20" height="15" rx="4" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><rect x="14" y="12" width="12" height="4" rx="2" fill="#ffe08a"/><line x1="14" y1="23" x2="9" y2="35" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="26" y1="23" x2="31" y2="35" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="20" y1="23" x2="20" y2="33" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="6" y1="35" x2="34" y2="35" stroke="#5f6670" stroke-width="1"/></svg>`,
+l:`<svg viewBox="0 0 40 40" width="56" height="56" style="margin:0px 0"><line x1="28" y1="7" x2="31" y2="2" stroke="#9aa0a8" stroke-width="1.4"/><circle cx="31" cy="2.5" r="1.4" fill="#ff7a1a"/><rect x="4" y="7" width="32" height="17" rx="5" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><circle cx="14" cy="15" r="3" fill="#ffe08a"/><circle cx="26" cy="15" r="3" fill="#ffe08a"/><rect x="16" y="19" width="8" height="2" rx="1" fill="#6b2418"/><line x1="8" y1="24" x2="4" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="15" y1="24" x2="13" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="25" y1="24" x2="27" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="32" y1="24" x2="36" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/></svg>`};
+function cardHtml(e,isNew){const c=e.c,left=e.left?`<div class="left">余り ${e.left}</div>`:'';
+  if(c.k==='t')return`<div class="card t ${isNew?'new':''}"><div class="mu">お宝</div>${ART.t}<div class="big">${c.v}</div>${left}</div>`;
+  return`<div class="card m ${isNew?'new':''}"><div class="mu">${MECHA[c.s].name}メカ</div>${ART[c.s]}<div class="big">${c.req}人</div>${left}</div>`;}
 function plHtml(p,v){const st={in:'ダンジョン内',out:'脱出済み',dead:'死亡',mia:'MIA'}[p.status];
   let ch='';if(p.status==='in'&&v.phase==='choose')ch=p.chosen?'<span class="chosen">選択済み</span>':'<span class="mu">考え中…</span>';
   else if(v.reveal&&v.reveal.ch[p.id])ch=`<span class="tag" style="color:var(--ac);border-color:var(--ac)">${ACT_NAME[v.reveal.ch[p.id]]}</span>`;
