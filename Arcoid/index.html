@@ -21,14 +21,17 @@ h1{font-size:28px;letter-spacing:.2em;margin:8px 0 2px;color:var(--ac)}
 .mu{color:var(--mu)}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mu)}
-.path{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px}
-.card{flex:0 0 auto;width:86px;height:140px;gap:1px;border-radius:8px;border:1px solid var(--line);background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;position:relative}
-.card .big{font-size:20px;font-weight:700;line-height:1.1}
+.path{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;padding:4px 0 8px}
+.card{min-width:0;aspect-ratio:86/140;gap:1px;border-radius:8px;border:1px solid var(--line);background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:clamp(9px,1.25vw,12px);position:relative;padding-bottom:9%}
+.card .art{width:68%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+.card .art svg{height:auto}
+.card .left .pl{display:none}
+@media(max-width:600px){.path{gap:3px}.card .lbl,.card .left .w{display:none}.card .left .pl{display:inline}.card{border-radius:5px;padding-bottom:14%}.card .left{font-size:9px}}
+.card .big{font-size:clamp(12px,2.1vw,20px);font-weight:700;line-height:1.1}
 .card.t{border-color:#6b5a2a}.card.t .big{color:var(--gold)}
 .card.m{border-color:#6b3227}.card.m .big{color:var(--red)}
 .card.new{outline:2px solid var(--ac)}
-.card .left{position:absolute;bottom:3px;font-size:11px;color:var(--gold)}
-.card{padding-bottom:10px}
+.card .left{position:absolute;bottom:3%;font-size:clamp(8px,1.1vw,11px);color:var(--gold);white-space:nowrap}
 .players{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 .pl{background:var(--p2);border:1px solid var(--line);border-radius:10px;padding:10px}
 .pl.me{border-color:var(--ac)}
@@ -59,6 +62,7 @@ table{border-collapse:collapse;width:100%}td,th{padding:6px 8px;border-bottom:1p
   <details class="panel rules"><summary>ルール</summary>
     <ul>
       <li>山札はお宝15枚とメカ15枚（小型8・中型5・大型2）。レイドごとにシャッフルする。</li>
+      <li>お宝カードの内訳：1・2・3・4・5・5・7・7・9・11・11・13・14・15・17（15枚、合計124）。</li>
       <li>毎ラウンド、山札を1枚めくる。<b>お宝</b>はダンジョンにいる全員で山分けし、割り切れない余りはカードの上に残る。</li>
       <li><b>メカ</b>はいる全員で戦う。撃破に必要な人数は小型1・中型2・大型3。人数に余裕があれば無傷、ちょうどなら全員1ダメージ、足りなければ全員即死。</li>
       <li>HPは2（レイドごとにリセット）。0になるか即死すると、そのレイドで持っていたお宝を全部失う。</li>
@@ -266,13 +270,13 @@ function render(){const app=$('#app');
   h+=`<div class="panel"><b>ログ</b><div class="log" id="log">${v.log.slice().reverse().map(l=>`<div class="${l.hl?'hl':''}">${esc(l.m)}</div>`).join('')}</div></div>`;
   app.innerHTML=h;}
 const ART={
-t:`<svg viewBox="0 0 40 40" width="44" height="44" style="margin:6px 0"><polygon points="7,15 13,7 27,7 33,15 20,34" fill="#f2c14e" stroke="#7a5a12" stroke-width="1.2" stroke-linejoin="round"/><polyline points="7,15 33,15" fill="none" stroke="#7a5a12" stroke-width="1"/><polyline points="13,7 16,15 20,34 24,15 27,7" fill="none" stroke="#7a5a12" stroke-width="1"/><polygon points="16,15 20,7 24,15" fill="#fde7a0" opacity=".8"/></svg>`,
-s:`<svg viewBox="0 0 40 40" width="36" height="36" style="margin:10px 0"><line x1="9" y1="9" x2="31" y2="9" stroke="#9aa0a8" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="9" x2="20" y2="14" stroke="#9aa0a8" stroke-width="2"/><circle cx="20" cy="23" r="9" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><circle cx="20" cy="23" r="3.6" fill="#ffe08a"/><circle cx="20" cy="23" r="1.4" fill="#2a1208"/><line x1="15" y1="31" x2="13" y2="35" stroke="#9aa0a8" stroke-width="1.6" stroke-linecap="round"/><line x1="25" y1="31" x2="27" y2="35" stroke="#9aa0a8" stroke-width="1.6" stroke-linecap="round"/></svg>`,
-m:`<svg viewBox="0 0 40 40" width="46" height="46" style="margin:5px 0"><rect x="10" y="8" width="20" height="15" rx="4" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><rect x="14" y="12" width="12" height="4" rx="2" fill="#ffe08a"/><line x1="14" y1="23" x2="9" y2="35" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="26" y1="23" x2="31" y2="35" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="20" y1="23" x2="20" y2="33" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="6" y1="35" x2="34" y2="35" stroke="#5f6670" stroke-width="1"/></svg>`,
-l:`<svg viewBox="0 0 40 40" width="56" height="56" style="margin:0px 0"><line x1="28" y1="7" x2="31" y2="2" stroke="#9aa0a8" stroke-width="1.4"/><circle cx="31" cy="2.5" r="1.4" fill="#ff7a1a"/><rect x="4" y="7" width="32" height="17" rx="5" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><circle cx="14" cy="15" r="3" fill="#ffe08a"/><circle cx="26" cy="15" r="3" fill="#ffe08a"/><rect x="16" y="19" width="8" height="2" rx="1" fill="#6b2418"/><line x1="8" y1="24" x2="4" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="15" y1="24" x2="13" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="25" y1="24" x2="27" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="32" y1="24" x2="36" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/></svg>`};
-function cardHtml(e,isNew){const c=e.c,left=e.left?`<div class="left">余り ${e.left}</div>`:'';
-  if(c.k==='t')return`<div class="card t ${isNew?'new':''}"><div class="mu">お宝</div>${ART.t}<div class="big">${c.v}</div>${left}</div>`;
-  return`<div class="card m ${isNew?'new':''}"><div class="mu">${MECHA[c.s].name}メカ</div>${ART[c.s]}<div class="big">${c.req}人</div>${left}</div>`;}
+t:`<svg viewBox="0 0 40 40" style="width:79%"><polygon points="7,15 13,7 27,7 33,15 20,34" fill="#f2c14e" stroke="#7a5a12" stroke-width="1.2" stroke-linejoin="round"/><polyline points="7,15 33,15" fill="none" stroke="#7a5a12" stroke-width="1"/><polyline points="13,7 16,15 20,34 24,15 27,7" fill="none" stroke="#7a5a12" stroke-width="1"/><polygon points="16,15 20,7 24,15" fill="#fde7a0" opacity=".8"/></svg>`,
+s:`<svg viewBox="0 0 40 40" style="width:64%"><line x1="9" y1="9" x2="31" y2="9" stroke="#9aa0a8" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="9" x2="20" y2="14" stroke="#9aa0a8" stroke-width="2"/><circle cx="20" cy="23" r="9" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><circle cx="20" cy="23" r="3.6" fill="#ffe08a"/><circle cx="20" cy="23" r="1.4" fill="#2a1208"/><line x1="15" y1="31" x2="13" y2="35" stroke="#9aa0a8" stroke-width="1.6" stroke-linecap="round"/><line x1="25" y1="31" x2="27" y2="35" stroke="#9aa0a8" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+m:`<svg viewBox="0 0 40 40" style="width:82%"><rect x="10" y="8" width="20" height="15" rx="4" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><rect x="14" y="12" width="12" height="4" rx="2" fill="#ffe08a"/><line x1="14" y1="23" x2="9" y2="35" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="26" y1="23" x2="31" y2="35" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="20" y1="23" x2="20" y2="33" stroke="#9aa0a8" stroke-width="2.2" stroke-linecap="round"/><line x1="6" y1="35" x2="34" y2="35" stroke="#5f6670" stroke-width="1"/></svg>`,
+l:`<svg viewBox="0 0 40 40" style="width:100%"><line x1="28" y1="7" x2="31" y2="2" stroke="#9aa0a8" stroke-width="1.4"/><circle cx="31" cy="2.5" r="1.4" fill="#ff7a1a"/><rect x="4" y="7" width="32" height="17" rx="5" fill="#e0523a" stroke="#6b2418" stroke-width="1.2"/><circle cx="14" cy="15" r="3" fill="#ffe08a"/><circle cx="26" cy="15" r="3" fill="#ffe08a"/><rect x="16" y="19" width="8" height="2" rx="1" fill="#6b2418"/><line x1="8" y1="24" x2="4" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="15" y1="24" x2="13" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="25" y1="24" x2="27" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/><line x1="32" y1="24" x2="36" y2="36" stroke="#9aa0a8" stroke-width="2.6" stroke-linecap="round"/></svg>`};
+function cardHtml(e,isNew){const c=e.c,left=e.left?`<div class="left"><span class="w">余り </span><span class="pl">+</span>${e.left}</div>`:'';
+  if(c.k==='t')return`<div class="card t ${isNew?'new':''}"><div class="mu lbl">お宝</div><div class="art">${ART.t}</div><div class="big">${c.v}</div>${left}</div>`;
+  return`<div class="card m ${isNew?'new':''}"><div class="mu lbl">${MECHA[c.s].name}メカ</div><div class="art">${ART[c.s]}</div><div class="big">${c.req}人</div>${left}</div>`;}
 function plHtml(p,v){const st={in:'ダンジョン内',out:'脱出済み',dead:'死亡',mia:'MIA'}[p.status];
   let ch='';if(p.status==='in'&&v.phase==='choose')ch=p.chosen?'<span class="chosen">選択済み</span>':'<span class="mu">考え中…</span>';
   else if(v.reveal&&v.reveal.ch[p.id])ch=`<span class="tag" style="color:var(--ac);border-color:var(--ac)">${ACT_NAME[v.reveal.ch[p.id]]}</span>`;
