@@ -52,6 +52,19 @@ table{border-collapse:collapse;width:100%}td,th{padding:6px 8px;border-bottom:1p
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--p2);border:1px solid var(--ac);padding:10px 16px;border-radius:8px;z-index:9;max-width:90vw}
 .net{font-size:12px}
 .chosen{color:var(--grn)}
+.res{border-color:var(--ac)}
+.rhead{color:var(--ac);font-weight:700;font-size:17px}
+.resgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.ri{background:var(--p2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ri.me{box-shadow:inset 0 0 0 1px var(--ac)}
+.ri .nm{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:600;margin-bottom:4px}
+.ri.a-escape{border-color:#2f6b4a}.ri.a-attack{border-color:#7a3226}
+.badge{font-size:12px;padding:1px 10px;border-radius:99px;font-weight:700}
+.b-stay{background:#3a3f47;color:#d6d3cc}.b-escape{background:#2f8a5a;color:#eafff2}.b-attack{background:#c2452f;color:#fff0ec}
+.it{font-size:13px}.it.g{color:var(--grn)}.it.r{color:#ff7d68}.it.o{color:var(--ac)}.it.m{color:var(--mu)}
+.bar{height:3px;background:#2a2e35;border-radius:2px;margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ac);animation:bar 3.2s linear forwards}
+@keyframes bar{from{width:100%}to{width:0}}
 </style>
 </head>
 <body>
@@ -85,7 +98,7 @@ const ACT_NAME={stay:'残る',escape:'脱出',attack:'襲う'};
 let ENV={rand:Math.random,later:(f,ms)=>setTimeout(f,ms),emit:()=>{},fast:false};
 let S=null;
 
-function newState(raids){return{phase:'lobby',raid:0,raids:raids||3,deck:[],path:[],players:[],log:[],round:0,lastCard:-1,reveal:null,seq:0,lost:0,flipped:0};}
+function newState(raids){return{phase:'lobby',raid:0,raids:raids||3,deck:[],path:[],players:[],log:[],round:0,lastCard:-1,reveal:null,result:null,seq:0,lost:0,flipped:0};}
 function buildDeck(){const d=TREASURE.map(v=>({k:'t',v}));for(const s in MECHA)for(let i=0;i<MECHA[s].n;i++)d.push({k:'m',s,req:MECHA[s].req});
   for(let i=d.length-1;i>0;i--){const j=Math.floor(ENV.rand()*(i+1));[d[i],d[j]]=[d[j],d[i]];}return d;}
 function P(id){return S.players.find(p=>p.id===id);}
@@ -97,7 +110,7 @@ function cardLabel(c){return c.k==='t'?'お宝'+c.v:MECHA[c.s].name+'メカ';}
 function kill(p,why){p.status='dead';p.hp=0;if(p.carried)log(`${p.name} は ${why}。お宝 ${p.carried} を失った`,true);else log(`${p.name} は ${why}`,true);S.lost+=p.carried;p.carried=0;}
 
 function startGame(){if(S.players.length<1)return;S.raid=0;S.players.forEach(p=>{p.banked=0;p.raidLog=[];});log('ゲーム開始',true);startRaid();}
-function startRaid(){S.lost+=S.path.reduce((x,e)=>x+e.left,0);S.raid++;S.deck=buildDeck();S.path=[];S.round=0;S.reveal=null;S.lastCard=-1;
+function startRaid(){S.lost+=S.path.reduce((x,e)=>x+e.left,0);S.raid++;S.deck=buildDeck();S.path=[];S.round=0;S.reveal=null;S.result=null;S.lastCard=-1;
   S.players.forEach(p=>{p.hp=HP_MAX;p.carried=0;p.status='in';p.choice=null;p.last=null;});
   S.phase='flip';log(`── レイド ${S.raid} / ${S.raids} 開始 ──`,true);ENV.emit();ENV.later(flip,ENV.fast?0:900);}
 
@@ -120,29 +133,35 @@ function flip(){if(S.phase!=='flip')return;
     else if(!p.online){p.choice='escape';}});
   checkAll();}
 
-function choose(id,a){if(S.phase!=='choose')return;const p=P(id);if(!p||p.status!=='in'||!ACT_NAME[a])return;p.choice=a;ENV.emit();checkAll();}
+function choose(id,a){if(S.phase!=='choose')return;const p=P(id);if(!p||p.status!=='in'||!ACT_NAME[a]||p.choice)return;p.choice=a;ENV.emit();checkAll();}
 function checkAll(){if(S.phase!=='choose')return;if(inside().every(p=>p.choice)){S.phase='resolve';ENV.later(resolve,ENV.fast?0:350);}}
 
 function resolve(){if(S.phase!=='resolve')return;
   const ins=inside(),E=ins.filter(p=>p.choice==='escape'),A=ins.filter(p=>p.choice==='attack');
-  S.reveal={round:S.round,ch:Object.fromEntries(ins.map(p=>[p.id,p.choice]))};
-  ins.forEach(p=>p.last=p.choice);
+  const R={raid:S.raid,round:S.round,acts:{},items:{},head:''};
+  const add=(p,t,c)=>(R.items[p.id]=R.items[p.id]||[]).push({t,c});
+  ins.forEach(p=>{R.acts[p.id]=p.choice;p.last=p.choice;});
+  S.reveal={round:S.round,ch:{...R.acts}};
   log('公開：'+ins.map(p=>`${p.name}=${ACT_NAME[p.choice]}`).join('、'));
   if(E.length){
     let L=S.path.reduce((a,e)=>a+e.left,0);
     if(L){const sh=Math.floor(L/E.length),rem=L-sh*E.length;S.path.forEach(e=>e.left=0);if(rem&&S.path.length)S.path[S.path.length-1].left=rem;
-      E.forEach(p=>p.carried+=sh);log(`脱出者が通路の余り ${L} を拾う（1人 ${sh}）`);}
-    if(A.length){let pool=0;E.forEach(p=>{const t=Math.floor(p.carried/2);p.carried-=t;pool+=t;log(`${p.name} が襲われ、お宝 ${t} を奪われた`,true);});
-      const sh=Math.floor(pool/A.length),rem=pool-sh*A.length;A.forEach(p=>p.carried+=sh);
+      E.forEach(p=>{p.carried+=sh;if(sh)add(p,`通路の余りを拾った +${sh}`,'g');});log(`脱出者が通路の余り ${L} を拾う（1人 ${sh}）`);}
+    if(A.length){let pool=0;E.forEach(p=>{const t=Math.floor(p.carried/2);p.carried-=t;pool+=t;add(p,`襲われた −${t}`,'r');log(`${p.name} が襲われ、お宝 ${t} を奪われた`,true);});
+      const sh=Math.floor(pool/A.length),rem=pool-sh*A.length;A.forEach(p=>{p.carried+=sh;add(p,`奪った +${sh}（未確定）`,'o');});
       if(rem&&S.path.length)S.path[S.path.length-1].left+=rem;
       log(`襲撃者 ${A.map(p=>p.name).join('・')} が1人 ${sh} を手に入れた`+(rem?`（余り ${rem} は通路へ）`:''),true);}
-    E.forEach(p=>{p.banked+=p.carried;p.raidLog.push(p.carried);log(`${p.name} が脱出。お宝 ${p.carried} を確定`,true);p.carried=0;p.status='out';});
-  }else if(A.length===1){log(`誰も脱出せず。${A[0].name} の襲撃は空振り`);
-  }else if(A.length){log(`誰も脱出せず。襲った ${A.map(p=>p.name).join('・')} は相打ちで1ダメージ`,true);
-    A.forEach(p=>{p.hp--;if(p.hp<=0)kill(p,'撃ち合いで倒れた');});}
+    E.forEach(p=>{add(p,`${p.carried} を確定して脱出`,'g');p.banked+=p.carried;p.raidLog.push(p.carried);log(`${p.name} が脱出。お宝 ${p.carried} を確定`,true);p.carried=0;p.status='out';});
+    R.head=A.length?`${E.map(p=>p.name).join('・')} が脱出、${A.map(p=>p.name).join('・')} が襲撃！`:`${E.map(p=>p.name).join('・')} が脱出した`;
+  }else if(A.length===1){add(A[0],'空振り','m');log(`誰も脱出せず。${A[0].name} の襲撃は空振り`);R.head=`${A[0].name} の襲撃は空振り`;
+  }else if(A.length){log(`誰も脱出せず。襲った ${A.map(p=>p.name).join('・')} は相打ちで1ダメージ`,true);R.head='相打ち！';
+    A.forEach(p=>{p.hp--;add(p,'相打ち ♥−1','r');if(p.hp<=0){add(p,`倒れた（お宝 ${p.carried} を失った）`,'r');kill(p,'撃ち合いで倒れた');}});
+  }else R.head='全員が残った';
+  ins.forEach(p=>{if(!R.items[p.id])add(p,p.choice==='stay'?'ダンジョンに残った':'—','m');});
+  S.result=R;
   S.players.forEach(p=>{if(p.status!=='in')p.choice=null;});
   if(!inside().length){endRaid();return;}
-  S.phase='flip';ENV.emit();ENV.later(flip,ENV.fast?0:1700);}
+  S.phase='result';ENV.emit();ENV.later(()=>{if(S.phase==='result'){S.phase='flip';flip();}},ENV.fast?0:3200);}
 
 function endRaid(){S.players.forEach(p=>{if(p.raidLog.length<S.raid)p.raidLog.push(0);});
   S.phase=S.raid>=S.raids?'gameEnd':'raidEnd';log(`── レイド ${S.raid} 終了 ──`,true);
@@ -162,7 +181,7 @@ function botChoose(p){const ins=inside(),n=ins.length,left=S.deck.length;
   return'stay';}
 
 function pub(){const comp={t:0,s:0,m:0,l:0};S.deck.forEach(c=>{if(c.k==='t')comp.t++;else comp[c.s]++;});
-  return{phase:S.phase,raid:S.raid,raids:S.raids,round:S.round,deckN:S.deck.length,comp,path:S.path,lastCard:S.lastCard,reveal:S.reveal,
+  return{phase:S.phase,raid:S.raid,raids:S.raids,round:S.round,deckN:S.deck.length,comp,path:S.path,lastCard:S.lastCard,reveal:S.reveal,result:S.result,
     log:S.log.slice(-80),players:S.players.map(p=>({id:p.id,name:p.name,bot:p.bot,online:p.online,hp:p.hp,carried:p.carried,banked:p.banked,status:p.status,chosen:!!p.choice,last:p.last,raidLog:p.raidLog})),seq:++S.seq};}
 //ENGINE-END
 
@@ -219,7 +238,7 @@ function guestJoin(code){code=code.trim().toUpperCase();if(!/^[A-Z0-9]{4}$/.test
 function reconnect(){const code=APP.code;try{APP.peer?.destroy()}catch(e){}guestJoin(code);}
 function leave(){try{APP.peer?.destroy()}catch(e){}Object.assign(APP,{mode:'menu',role:null,code:null,peer:null,conn:null,view:null,net:''});APP.conns=new Map();S=null;render();}
 
-function act(a){if(!APP.view||APP.view.phase!=='choose')return;APP.myChoice={a,round:APP.view.round,raid:APP.view.raid};
+function act(a){if(!APP.view||APP.view.phase!=='choose')return;if(APP.myChoice&&APP.myChoice.round===APP.view.round&&APP.myChoice.raid===APP.view.raid)return;APP.myChoice={a,round:APP.view.round,raid:APP.view.raid};
   if(APP.role==='host')choose(ME,a);else{try{APP.conn.send({t:'act',a})}catch(e){toast('送信できませんでした')}render();}}
 
 const BOTN=['ハウンド','レイヴン','ジャッカル','ノマド','ブリッツ','ヴァイパー','スカウト','ロック'];
@@ -251,11 +270,13 @@ function render(){const app=$('#app');
   h+=`<div class="panel"><div class="top"><div><b>レイド ${v.raid} / ${v.raids}</b> <span class="mu">ラウンド ${v.round}</span></div>
     <div class="comp">山札 <b style="color:var(--tx)">${v.deckN}</b> 枚（お宝 ${v.comp.t}・小型 ${v.comp.s}・中型 ${v.comp.m}・大型 ${v.comp.l}）</div></div>
     <div class="path">${v.path.map((e,i)=>cardHtml(e,i===v.lastCard)).join('')||'<span class="mu">まだ何もめくられていません</span>'}</div></div>`;
+  // round result
+  const R=v.result;if(R&&R.raid===v.raid&&R.round===v.round&&['result','raidEnd','gameEnd'].includes(v.phase))h+=resultHtml(R,v);
   // action
   if(me){
     if(v.phase==='choose'&&me.status==='in'){const mine=APP.myChoice&&APP.myChoice.round===v.round&&APP.myChoice.raid===v.raid?APP.myChoice.a:null;
-      h+=`<div class="panel"><div style="margin-bottom:8px">${mine?'選択済み。他のプレイヤーを待っています（変更可）':'行動を選んでください'}</div><div class="acts">
-        ${['stay','escape','attack'].map(a=>`<button class="${mine===a?'sel':''}" onclick="act('${a}')">${ACT_NAME[a]}</button>`).join('')}</div>
+      h+=`<div class="panel"><div style="margin-bottom:8px">${mine?`<b style="color:var(--ac)">${ACT_NAME[mine]}</b> を選んだ。他のプレイヤーを待っています…`:'行動を選んでください（決定後は変更できません）'}</div><div class="acts">
+        ${['stay','escape','attack'].map(a=>`<button class="${mine===a?'sel':''}" ${mine?'disabled':''} onclick="act('${a}')">${ACT_NAME[a]}</button>`).join('')}</div>
         <div class="mu" style="font-size:12px;margin-top:8px">残る：次のカードへ ／ 脱出：通路の余りを拾ってお宝を確定 ／ 襲う：今ラウンドの脱出者から半分奪う（2人以上が空振りしたら相打ちで全員1ダメージ）</div></div>`;}
     else if(me.status!=='in'&&(v.phase==='choose'||v.phase==='flip'||v.phase==='resolve')){h+=`<div class="panel mu">${me.status==='out'?'脱出済み。':me.status==='mia'?'MIA。':'倒れた。'}レイドの終わりを見届けよう。</div>`;}
     else if(v.phase==='flip'||v.phase==='resolve'){h+=`<div class="panel mu">${v.phase==='flip'?'次のカードをめくります…':'公開中…'}</div>`;}
@@ -277,6 +298,11 @@ l:`<svg viewBox="0 0 40 40" style="width:100%"><line x1="28" y1="7" x2="31" y2="
 function cardHtml(e,isNew){const c=e.c,left=e.left?`<div class="left"><span class="w">余り </span><span class="pl">+</span>${e.left}</div>`:'';
   if(c.k==='t')return`<div class="card t ${isNew?'new':''}"><div class="mu lbl">お宝</div><div class="art">${ART.t}</div><div class="big">${c.v}</div>${left}</div>`;
   return`<div class="card m ${isNew?'new':''}"><div class="mu lbl">${MECHA[c.s].name}メカ</div><div class="art">${ART[c.s]}</div><div class="big">${c.req}人</div>${left}</div>`;}
+function resultHtml(R,v){const ids=Object.keys(R.acts);
+  return`<div class="panel res"><div class="top" style="margin-bottom:8px"><b>ラウンド ${R.round} の結果</b><span class="rhead">${esc(R.head)}</span></div>
+    <div class="resgrid">${ids.map(id=>{const p=v.players.find(x=>x.id===id);if(!p)return'';const a=R.acts[id];
+      return`<div class="ri a-${a} ${id===ME?'me':''}"><div class="nm"><span>${esc(p.name)}</span><span class="badge b-${a}">${ACT_NAME[a]}</span></div>${(R.items[id]||[]).map(it=>`<div class="it ${it.c}">${esc(it.t)}</div>`).join('')}</div>`;}).join('')}</div>
+    ${v.phase==='result'?'<div class="bar"><i></i></div>':''}</div>`;}
 function plHtml(p,v){const st={in:'ダンジョン内',out:'脱出済み',dead:'死亡',mia:'MIA'}[p.status];
   let ch='';if(p.status==='in'&&v.phase==='choose')ch=p.chosen?'<span class="chosen">選択済み</span>':'<span class="mu">考え中…</span>';
   else if(v.reveal&&v.reveal.ch[p.id])ch=`<span class="tag" style="color:var(--ac);border-color:var(--ac)">${ACT_NAME[v.reveal.ch[p.id]]}</span>`;
